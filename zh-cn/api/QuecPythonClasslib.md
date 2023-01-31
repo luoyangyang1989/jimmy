@@ -380,7 +380,7 @@ if __name__ == '__main__':
 | 参数       | 参数类型 | 参数说明                                                     |
 | ---------- | -------- | ------------------------------------------------------------ |
 | profileIdx | int      | PDP索引，ASR平台范围1-8，展锐平台范围1-7，一般设置为1，设置其他值可能需要专用apn与密码才能设置成功 |
-| sim_id     | int      | simid, 范围：0 or 1 （默认为0）                              |
+| sim_id     | int      | simid, 范围：0 or 1 ，默认为0，目前仅支持0                   |
 | priDns     | string   | 需要设置的自定义DNS服务器                                    |
 | secDns     | string   | 需要设置的自定义DNS服务器                                    |
 
@@ -414,7 +414,7 @@ if __name__ == '__main__':
 
 | 参数       | 参数类型 | 参数说明                                           |
 | ---------- | -------- | -------------------------------------------------- |
-| simid      | int      | simid，范围：0/1                                   |
+| simid      | int      | simid，范围：0/1；目前仅支持0                      |
 | profileIdx | int      | 可选参数，PDP索引，ASR平台范围1-8，展锐平台范围1-7 |
 
 * 返回值
@@ -789,13 +789,13 @@ bytearray(b'\r\nERROR\r\n\n
 
 将命令APDU通过modem传递给SIM卡，然会返回响应APDU。
 
-注意：当前仅ASR平台支持。
+注意：当前仅ASR-1603平台支持。
 
 * 参数
 
 | 参数  | 参数类型 | 参数说明                                                     |
 | ----- | -------- | ------------------------------------------------------------ |
-| simId | int      | sim id, 范围：0 or 1                                         |
+| simId | int      | sim id, 范围：0 or 1 ，目前仅支持0                           |
 | cmd   | string   | command passed on by the MT to the SIM in the format as described in GSM 51.011 |
 
 * 返回值
@@ -1154,7 +1154,7 @@ sim卡解锁。当多次错误输入 PIN/PIN2 码后，SIM 卡状态为请求 PU
 
 
 
-##### 注册监听回调函数
+##### 热插拔注册监听回调函数
 
 > **sim.setCallback(usrFun)**
 
@@ -1251,6 +1251,117 @@ sim.setCallback(cb)
 ```python
 >>> sim.getSimDet()
 (1, 0)
+```
+
+
+
+##### 获取当前卡的SimId
+
+> **sim.getCurSimid()**
+
+获取当前卡的SimId。（仅1606平台支持）
+
+* 参数
+
+  无
+
+* 返回值
+
+  获取成功，返回当前simid(0:卡1,1:卡2)
+  
+  获取失败，返回整形-1
+
+* 示例
+
+```python
+>>> sim.getCurSimid() //获取当前卡，当前是卡1
+0
+```
+
+
+
+##### 切卡接口
+
+> **sim.switchCard(simid)**
+
+sim卡切卡接口。（仅1606平台支持）
+
+* 参数
+
+  | 参数   | 参数类型 | 参数说明                        |
+  | ------ | -------- | ------------------------------- |
+  | simid  | int      | 0:卡1  1:卡2                    |
+
+* 返回值
+
+  切卡动作发起成功返回整形0，切换动作发起失败返回整形-1
+
+* 示例
+
+```python
+>>> sim.getCurSimid() //获取当前卡，当前是卡1
+0
+>>> sim.switchCard(1) //切到卡2
+0
+>>> sim.getCurSimid() //获取当前卡，成功切到卡2
+1
+```
+
+
+
+##### 注册监听SIM卡切卡状态回调函数
+
+> **sim.setSwitchcardCallback(usrFun)**
+
+注册监听回调函数。响应SIM卡切卡动作。（仅1606平台支持）
+
+*注意
+
+不是所有的切卡失败都会通过回调返回：
+1、目标卡不存在或者目标卡状态异常
+2、目标卡是当前卡
+以上情况切卡接口直接返回-1，不会走到实际切卡的流程，也就不会触发回调
+
+如果满足切卡条件，切卡接口返回0，底层建立task走切卡流程，这个时候切卡失败或者成功，会通过callback返回
+
+* 参数
+
+| 参数   | 参数类型 | 参数说明                               |
+| ------ | -------- | -------------------------------------- |
+| usrFun | function | 监听回调函数，回调具体形式及用法见示例 |
+
+* 返回值
+
+  注册成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+//切卡状态枚举值，目前给到python侧的数据只有：
+HELIOS_SIM_SWITCH_CURRSIM_PSDC_UP（切卡成功:7）
+HELIOS_SIM_SWITCH_ERROR（切卡失败:8）
+
+typedef enum
+{
+	HELIOS_SIM_SWITCH_INIT = 0,
+	HELIOS_SIM_SWITCH_START,
+	HELIOS_SIM_SWITCH_PRESIM_PDP_DOWN,
+	HELIOS_SIM_SWITCH_PRESIM_IMS_DOWN,
+	HELIOS_SIM_SWITCH_PRESIM_PSDC_DOWN,
+	HELIOS_SIM_SWITCH_CURRSIM_PDP_UP,
+    HELIOS_SIM_SWITCH_PRESIM_IMS_UP,
+	HELIOS_SIM_SWITCH_CURRSIM_PSDC_UP,
+	HELIOS_SIM_SWITCH_ERROR
+}HELIOS_SIM_SWITCH_STATE;
+
+import sim
+
+def cb(args):
+    switchcard_state = args
+    print('sim switchcard states:{}'.format(switchcard_state))
+    
+sim.setSwitchcardCallback(cb)
 ```
 
 
@@ -2020,6 +2131,8 @@ if __name__ == '__main__':
   `current_nums` - 当前空间已有短信数量
 
   `max_nums` - 当前空间最大短信存储数量
+  
+  失败返回整形-1
 
 * 示例
 
@@ -2307,7 +2420,7 @@ sms.setCallback(cb)
 
 * 参数
 
-  该接口在Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc(不包括EG915)平台为可变参函数,参数个数为2或7, 其他平台参数个数固定为2：
+  该接口在Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc平台为可变参函数,参数个数为2或7, 其他平台参数个数固定为7：
     参数个数为2：net.setApn(apn, simid)
     参数个数为7：net.setApn(pid, iptype, apn, usrname, password, authtype, simid)
   
@@ -2321,7 +2434,7 @@ sms.setCallback(cb)
 | usrname | string   | 用户名，可为空，最大长度不超过64字节   |
 | password| string   | 用户名，可为空，最大长度不超过64字节   |
 | authtype| int      | 加密方式，0-不加密，1-PAP，2-CHAP，3-PAP AND CHAP(CATM平台支持)|
-| simid   | int      | simid<br> 0 - 卡1<br> 1 - 卡2          |
+| simid   | int      | simid，目前仅支持0<br> 0 - 卡1 <br> 1 - 卡2 |
 
 * 返回值
 
@@ -2350,16 +2463,16 @@ sms.setCallback(cb)
 
 * 参数
 
-  该接口在Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc(不包括EG915)平台为可变参函数,参数个数为1或2, 其他平台参数个数固定为1：
+  该接口在Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc平台为可变参函数,参数个数为1或2, 其他平台参数个数固定为2：
     参数个数为2：net.getApn(pid, simid)
     参数个数为1：net.getApn(simid)
 	
   具体释义如下：
 
-| 参数  | 参数类型 | 参数说明                        |
-| ----- | -------- | ------------------------------- |
-| pid   | int      | PDP索引                         |
-| simid | int      | simid<br/> 0 - 卡1<br/> 1 - 卡2 |
+| 参数  | 参数类型 | 参数说明                                         |
+| ----- | -------- | ------------------------------------------------ |
+| pid   | int      | PDP索引                                          |
+| simid | int      | simid，目前仅支持0<br/> 0 - 卡1    <br/> 1 - 卡2 |
 
 * 返回值
 
@@ -2417,7 +2530,7 @@ sms.setCallback(cb)
 
 * 参数
 
-  该接口在BC25平台为可变参函数,参数个数为0或1, 其他平台参数个数固定为0：
+  该接口在BC25平台和移芯小内存方案为可变参函数,参数个数为0或1, 其他平台参数个数固定为0：
     参数个数为0：net.getCellInfo()
     参数个数为1：net.getCellInfo(sinr_enable)
 	
@@ -2471,7 +2584,7 @@ sms.setCallback(cb)
 | earfcn | 无线频道编号，范围 0 ~ 65535                                 |
 | rssi   | 接收的信号强度，在LTE网络下，表示RSRP质量（负值），是根据RSRP测量报告值换算而来，换算关系如下：<br>RSRP质量（负数）= RSRP测量报告值 - 140，单位dBm，范围 -140 ~ -44 dBm |
 | rsrq  |(Reference Signal Receiving Quality):LTE参考信号接收质量(仅ASR平台数据有意义，其余平台默认0)，范围 -20 ~ -3  注：理论上rsrq的范围应该是-19.5 ~ -3，但由于计算方法问题，目前能给出的是-20 ~ -3|
-| sinr   |信噪比(目前仅BC25平台支持获取该参数，非服务小区默认写0, 范围-30 ~ 30)       |
+| sinr   |信噪比(目前仅BC25和移芯小内存平台支持获取该参数，范围-30 ~ 30)       |
 
 * 示例
 
@@ -2493,7 +2606,7 @@ sms.setCallback(cb)
 
 ##### 获取网络制式及漫游配置
 
-注意：BC25PA平台不支持此方法。EC200U/EC600U平台不支持漫游参数配置。
+注意：BC25PA平台不支持此方法。展锐平台不支持漫游参数配置。移芯平台仅支持LTE ONLY.
 
 > **net.getConfig()**
 
@@ -2536,6 +2649,14 @@ sms.setCallback(cb)
 | 22   | GSM_CATNB,        BG95 supported                             |
 | 23   | CATM_CATNB,       BG95 supported                             |
 | 24   | GSM_CATM_CATNB,   BG95 supported                             |
+| 25   | CATM_GSM,         BG95 supported                             |
+| 26   | CATNB_GSM,        BG95 supported                             |
+| 27   | CATNB_CATM,       BG95 supported                             |
+| 28   | GSM_CATNB_CATM,   BG95 supported                             |
+| 29   | CATM_GSM_CATNB,   BG95 supported                             |
+| 30   | CATM_CATNB_GSM,   BG95 supported                             |
+| 31   | CATNB_GSM_CATM,   BG95 supported                             |
+| 32   | CATNB_CATM_GSM,   BG95 supported                             |
 
 * 示例
 
@@ -2548,7 +2669,7 @@ sms.setCallback(cb)
 
 ##### 设置网络制式及漫游配置
 
-注意：BC25PA平台不支持此方法。EC200U/EC600U平台不支持漫游参数配置。
+注意：BC25PA平台不支持此方法。展锐平台不支持漫游参数配置。移芯平台仅支持LTE ONLY.
 
 > **net.setConfig(mode, roaming)**
 
@@ -2639,7 +2760,7 @@ sms.setCallback(cb)
 
 * 参数
 
-  该接口在1803s/qualcomm/unisoc(不包括EG915)平台为可变参函数,参数个数为0或1, 其他平台参数个数固定为0：
+  该接口在非RDA平台为可变参函数,参数个数为0或1, RDA平台参数个数固定为0：
     参数个数为0：net.getSignal()
     参数个数为1：net.getSignal(sinr_enable)
 	
@@ -2675,7 +2796,7 @@ sms.setCallback(cb)
 
   `cqi` ：信道质量
   
-  `sinr`: 信噪比(目前仅1803s/qualcomm/unisoc平台支持获取该参数)
+  `sinr`: 信噪比(RDA平台不支持获取该参数)
 
 * 示例
 
@@ -3101,6 +3222,222 @@ sms.setCallback(cb)
 
 ```python
 >>> net.setModemFun(4)
+0
+```
+
+
+
+##### band设置与获取
+
+##### band值对照表
+
+| 网络制式        | band值                                                       |
+| --------------- | ------------------------------------------------------------ |
+| EGPRS(GSM)      | EGSM900 - 0x1<br/>DCS1800 - 0x2<br/>GSM850 - 0x4<br/>PCS1900 - 0x8 |
+| LTE/eMTC/NB-IoT | BAND1 - 0x1<br/>BAND2 - 0x2<br/>BAND3 - 0x4<br/>BAND4 - 0x8<br/>BAND5 - 0x10<br/>BAND8 - 0x80<br/>BAND12 - 0x800<br/>BAND13 - 0x1000<br/>BAND18 - 0x20000<br/>BAND19 - 0x40000<br/>BAND20 - 0x80000<br/>BAND25 - 0x1000000<br/>BAND26 - 0x2000000<br/>BAND27 - 0x4000000<br/>BAND28 - 0x8000000<br/>BAND31 - 0x40000000<br/>BAND66 - 0x20000000000000000<br/>BAND71 - 0x400000000000000000<br/>BAND72 - 0x800000000000000000<br/>BAND73 - 0x1000000000000000000<br/>BAND85 - 0x1000000000000000000000<br/> |
+
+##### BG95M3模组band支持表
+
+| 网络制式 | 支持的BAND                                                   |
+| -------- | ------------------------------------------------------------ |
+| eMTC     | B1/B2/B3/B4/B5/B8/B12/B13/B18/B19/B20/B25/B26/B27/B28/B66/B85 |
+| NB-IoT   | B1/B2/B3/B4/B5/B8/B12/B13/B18/B19/B20/B25/B28/B66/B71/B85    |
+| EGPRS    | GSM850/EGSM900/DCS1800/PCS1900                               |
+
+##### EG912NENAA模组band支持表
+
+| 网络制式 | 支持的BAND                           |
+| -------- | ------------------------------------ |
+| LTE      | B1/B3/B5/B7/B8/B20/B28/B31/B72       |
+| EGPRS    | EGSM900/DCS1800                      |
+
+
+
+##### band设置
+
+> **net.setBand(net_rat, gsm_band, band_tuple)**
+
+* 功能
+
+  设置需要的band，即在模组支持的前提下，锁定用户指定的band。 (当前可支持平台：CATM/EG912NENAA)
+
+* 参数
+
+| 参数       | 类型  | 说明                                                         |
+| ---------- | ----- | ------------------------------------------------------------ |
+| net_rat    | int   | 指定要设置的是哪种网络模式下的band<br>0 - 设置GSM网络的band<br>1 - 设置LTE网络的band<br>2 - 设置CATM网络的band<br>3 - 设置NB网络的band<br>注意：CATM平台不支持上述模式1，即LTE网络的band<br/>EG912NENAA仅支持上述模式0和模式1 |
+| gsm_band   | int   | GSM网络的band值<br/>0x01 - GSM_EGSM900<br/>0x02 - GSM_DCS1800<br>0x04 - GSM_GSM850<br/>0x08 - GSM_PCS1900 |
+| band_tuple | tuple | 设置GSM网络之外的其他网络模式的band值，是一个包含4个元素的元组，每个成员最大不能超过4字节，形式如下：<br>(band_hh, band_hl, band_lh, band_ll)<br>每个元素说明如下：<br>band_hh - band值的高8字节的高4字节<br>band_hl  - band值的高8字节的低4字节<br/>band_lh  - band值的低8字节的高4字节<br/>band_ll   - band值的低8字节的低4字节<br/>如果用户最终要设置的band值为band_value，那么计算方式如下：<br>band_hh = (band_value & 0xFFFFFFFF000000000000000000000000) >> 96 <br/>band_hl = (band_value & 0x00000000FFFFFFFF0000000000000000) >> 64 <br/>band_lh = (band_value & 0x0000000000000000FFFFFFFF00000000) >> 32 <br/>band_ll = (band_value & 0x000000000000000000000000FFFFFFFF) |
+
+* 返回值
+
+  设置成功返回整形0，失败返回整形-1。
+
+* 示例
+
+```python
+import net
+import utime
+
+'''
+用户可直接使用下面两个接口来设置band和获取band
+'''
+def set_band(net_rat, band_value):
+    if net_rat == 0:
+        retval = net.setBand(0, band_value, (0, 0, 0, 0))
+    else:
+        band_hh = (band_value & 0xFFFFFFFF000000000000000000000000) >> 96
+        band_hl = (band_value & 0x00000000FFFFFFFF0000000000000000) >> 64
+        band_lh = (band_value & 0x0000000000000000FFFFFFFF00000000) >> 32
+        band_ll = (band_value & 0x000000000000000000000000FFFFFFFF)
+        retval = net.setBand(net_rat, 0, (band_hh, band_hl, band_lh, band_ll))
+    return retval
+
+
+def get_band(net_rat):
+    return net.getBand(net_rat)
+
+#======================================================================================================
+
+'''
+设置GSM网络band为0xa，即 DCS1800 + PCS1900
+0xa = 0x2(DCS1800) + 0x8(PCS1900)
+'''
+def set_gsm_band_example():
+    print('Set GSM band to 0xa example:')
+    gsm_band = get_band(0)
+    print('GSM band value before setting:{}'.format(gsm_band))
+    ret = set_band(0, 0xa)
+    if ret == 0:
+        print('Set GSM band successfully.')
+    else:
+        print('Set GSM band failed.')
+    utime.sleep(1) # 设置band需要一定时间，延时一段时间再获取新的结果
+    gsm_band = get_band(0)
+    print('GSM band value after setting:{}'.format(gsm_band))
+    return ret
+
+
+'''
+设置eMTC网络band为0x15，即设置 BAND1+BAND3+BAND5
+0x15 = 0x1(BAND1) + 0x4(BAND3) + 0x10(BAND5)
+'''
+def set_camt_band_example():
+    print('Set CATM band to 0x15 example:')
+    catm_band = get_band(2)
+    print('CATM band value before setting:{}'.format(catm_band))
+    ret = set_band(2, 0x15)
+    if ret == 0:
+        print('Set CATM band successfully.')
+    else:
+        print('Set CATM band failed.')
+    utime.sleep(1) # 设置band需要一定时间，延时一段时间再获取新的结果
+    catm_band = get_band(2)
+    print('CATM band value after setting:{}'.format(catm_band))
+    return ret
+
+
+'''
+设置NB-IoT网络band为0x1000800000000000020011，即设置 BAND1+BAND5+BAND18+BAND71+BAND85
+0x1000400000000000020011 = 0x1 + 0x10 + 0x20000 + 0x400000000000000000 + 0x1000000000000000000000
+'''
+def set_nb_band_example():
+    print('Set NB band to 0x1000400000000000020011 example:')
+    nb_band = get_band(3)
+    print('NB band value before setting:{}'.format(nb_band))
+    ret = set_band(3, 0x1000400000000000020011)
+    if ret == 0:
+        print('Set NB band successfully.')
+    else:
+        print('Set NB band failed.')
+    utime.sleep(1) # 设置band需要一定时间，延时一段时间再获取新的结果
+    nb_band = get_band(3)
+    print('NB band value after setting:{}'.format(nb_band))
+    return ret
+
+
+def main():
+    set_gsm_band_example()
+    utime.sleep(1)
+    set_camt_band_example()
+    utime.sleep(1)
+    set_nb_band_example()
+
+
+if __name__ == '__main__':
+    main()
+    
+
+#===================================================================================================
+#运行结果
+Set GSM band to 0xa example:
+GSM band value before setting:0xf
+Set GSM band successfully.
+GSM band value after setting:0xa
+
+Set CATM band to 0x15 example:
+CATM band value before setting:0x10000200000000090e189f
+Set CATM band successfully.
+CATM band value after setting:0x15
+
+Set NB band to 0x1000400000000000020011 example:
+NB band value before setting:0x10004200000000090e189f
+Set NB band successfully.
+NB band value after setting:0x1000400000000000020011
+
+```
+
+
+
+##### band获取
+
+> **net.getBand(net_rat)**
+
+* 功能
+
+获取当前某个网络制式下的band设置值。(当前可支持平台：CATM/EG912NENAA)
+
+* 参数
+
+| 参数    | 类型 | 说明                                                         |
+| ------- | ---- | ------------------------------------------------------------ |
+| net_rat | int  | 指定要设置的是哪种网络模式下的band<br/>0 - 设置GSM网络的band<br/>1 - 设置LTE网络的band<br/>2 - 设置CATM网络的band<br/>3 - 设置NB网络的band<br/>注意：CATM平台不支持上述模式1，即LTE网络的band<br/>EG912NENAA仅支持上述模式0和模式1 |
+
+* 返回值
+
+返回十六进制字符串形式的band值。
+
+* 示例
+
+```python
+net.getBand(2)
+'0x10000200000000090e189f'  # 这是字符串，用户如果需要int型，可通过int(data)来自行转换
+```
+
+
+
+##### band恢复初始值
+
+> **net.bandRst()**
+
+* 功能
+
+恢复band初始设定值。(当前可支持平台：EG912NENAA)
+
+* 参数
+
+无
+
+* 返回值
+
+成功返回整形0，失败返回整形-1。
+
+* 示例
+
+```python
+#先设置成其他band，调用该接口，看是否成功恢复成初始值
+#EG912NENAA平台初始值：gsm_band:0x3(EGSM900/DCS1800 )  lte_band:0x8000000000480800D5(B1/B3/B5/B7/B8/B20/B28/B31/B72 )
+net.bandRst()
 0
 ```
 
@@ -3689,7 +4026,7 @@ download_list = [{'url': 'http://www.example.com/app.py', 'file_name': '/usr/app
 > 设置完成升级标志后，调用重启接口，重启后即可启动升级工作。
 > 升级完成后会直接进入应用程序。
 
-> 重启接口参考链接：http://qpy.quectel.com/wiki/#/zh-cn/api/?id=power
+> 重启接口参考链接：https://python.quectel.com/wiki/#/zh-cn/api/QuecPythonClasslib?id=%e6%a8%a1%e5%9d%97%e9%87%8d%e5%90%af
 
 
 
@@ -4460,7 +4797,6 @@ aud.play(1, 0, 'U:/test.mp3')
                   break
               audio_test.playStream(format, b)
               utime.sleep_ms(20)
-          f.close()
   
   
   play_from_fs()
@@ -4738,15 +5074,15 @@ record_test.getSize(“test.amr”)
 
 ###### 删除录音文件
 
-> **record.Delete(file_name/无参数)**
+> **record.Delete(file_name)**
 
 删除录音文件。
 
 * 参数
 
-| 参数      | 参数类型 | 参数说明                                                     |
-| --------- | -------- | ------------------------------------------------------------ |
-| file_name | str类型  | 文件名，可选参数，传入该参数表示删除指定文件名的文件，不传该参数，表示删除该对象下所有录音文件 |
+| 参数      | 参数类型 | 参数说明   |
+| --------- | -------- | ---------- |
+| file_name | str      | 录音文件名 |
 
 * 返回值
 
@@ -4760,7 +5096,6 @@ record_test.getSize(“test.amr”)
 
 ```python
 record_test.Delete(“test.amr”)
-record_test.Delete()
 ```
 
 
@@ -5256,12 +5591,12 @@ pk.powerKeyEventRegister(pwk_callback)
 
 ###### 常量说明
 
-| 常量     | 说明 | 使用平台                                             |
-| -------- | ---- | ---------------------------------------------------- |
-| PWM.PWM0 | PWM0 | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/EC600M |
-| PWM.PWM1 | PWM1 | EC600S / EC600N / EC100Y/EC800N/EC600M               |
-| PWM.PWM2 | PWM2 | EC600S / EC600N / EC100Y/EC800N/EC600M               |
-| PWM.PWM3 | PWM3 | EC600S / EC600N / EC100Y/EC800N/EC600M               |
+| 常量     | 说明 | 使用平台                                                     |
+| -------- | ---- | ------------------------------------------------------------ |
+| PWM.PWM0 | PWM0 | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N |
+| PWM.PWM1 | PWM1 | EC600S / EC600N / EC100Y/EC800N/EC600M/EC800M/EG912N         |
+| PWM.PWM2 | PWM2 | EC600S / EC600N / EC100Y/EC800N/EC600M/EC800M/EG912N         |
+| PWM.PWM3 | PWM3 | EC600S / EC600N / EC100Y/EC800N/EC600M/EC800M/EG912N         |
 
 
 
@@ -5275,8 +5610,8 @@ pk.powerKeyEventRegister(pwk_callback)
 
 | 参数      | 参数类型 | 参数说明                                                     |
 | --------- | -------- | ------------------------------------------------------------ |
-| PWMn      | int      | PWM号<br/>注：EC100YCN平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号19<br/>PWM1 – 引脚号18<br/>PWM2 – 引脚号23<br/>PWM3 – 引脚号22<br/>注：EC600SCN/EC600N平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号52<br/>PWM1 – 引脚号53<br/>PWM2 – 引脚号70<br/>PWM3 – 引脚号69<br />注：EC800N平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号79<br/>PWM1 – 引脚号78<br/>PWM2 – 引脚号16<br/>PWM3 – 引脚号49<br />注：EC200UCN平台，支持PWM0，对应引脚如下：<br />PWM0 – 引脚号135<br />注：EC600UCN平台，支持PWM0，对应引脚如下：<br />PWM0 – 引脚号70<br />注：EC600M平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号57<br/>PWM1 – 引脚号56<br/>PWM2 – 引脚号70<br/>PWM3 – 引脚号69 |
-| ABOVE_xx  | int      | EC600SCN/EC600N/EC800N平台:<br />PWM.ABOVE_MS				ms级取值范围：(0,1023]<br/>PWM.ABOVE_1US				us级取值范围：(0,157]<br/>PWM.ABOVE_10US				us级取值范围：(1,1575]<br/>PWM.ABOVE_BELOW_US			ns级 取值(0,1024]<br />EC200U/EC600U平台:<br />PWM.ABOVE_MS				ms级取值范围：(0,10]<br/>PWM.ABOVE_1US				us级取值范围：(0,10000]<br/>PWM.ABOVE_10US				us级取值范围：(1,10000]<br/>PWM.ABOVE_BELOW_US			ns级 取值[100,65535] |
+| PWMn      | int      | PWM号<br/>注：EC100YCN平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号19<br/>PWM1 – 引脚号18<br/>PWM2 – 引脚号23<br/>PWM3 – 引脚号22<br/>注：EC600SCN/EC600N平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号52<br/>PWM1 – 引脚号53<br/>PWM2 – 引脚号70<br/>PWM3 – 引脚号69<br />注：EC800N平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号79<br/>PWM1 – 引脚号78<br/>PWM2 – 引脚号16<br/>PWM3 – 引脚号49<br />注：EC200UCN平台，支持PWM0，对应引脚如下：<br />PWM0 – 引脚号135<br />注：EC600UCN平台，支持PWM0，对应引脚如下：<br />PWM0 – 引脚号70<br />注：EC600M平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号57<br/>PWM1 – 引脚号56<br/>PWM2 – 引脚号70<br/>PWM3 – 引脚号69<br/>注：EG915U平台，支持PWM0，对应引脚如下：<br/>PWM0 – 引脚号20<br/>注：EC800M平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号83<br/>PWM1 – 引脚号78<br/>PWM2 – 引脚号16<br/>PWM3 – 引脚号49<br/>注：EG912N平台，支持PWM0-PWM3，对应引脚如下：<br/>PWM0 – 引脚号21<br/>PWM1 – 引脚号116<br/>PWM2 – 引脚号107<br/>PWM3 – 引脚号92 |
+| ABOVE_xx  | int      | EC600SCN/EC600N/EC800N/EC600M/EC800M/EG912N平台:<br />PWM.ABOVE_MS				ms级取值范围：(0,1023]<br/>PWM.ABOVE_1US				us级取值范围：(0,157]<br/>PWM.ABOVE_10US				us级取值范围：(1,1575]<br/>PWM.ABOVE_BELOW_US			ns级 取值(0,1024]<br />EC200U/EC600U/EG915U平台:<br />PWM.ABOVE_MS				ms级取值范围：(0,10]<br/>PWM.ABOVE_1US				us级取值范围：(0,10000]<br/>PWM.ABOVE_10US				us级取值范围：(1,10000]<br/>PWM.ABOVE_BELOW_US			ns级 取值[100,65535] |
 | highTime  | int      | ms级时，单位为ms<br/>us级时，单位为us<br/>ns级别：需要使用者计算<br/>               频率 = 13Mhz / cycleTime<br/>               占空比 = highTime/ cycleTime |
 | cycleTime | int      | ms级时，单位为ms<br/>us级时，单位为us<br/>ns级别：需要使用者计算<br/>             频率 = 13Mhz / cycleTime<br/>             占空比 = highTime/ cycleTime |
 
@@ -5371,8 +5706,8 @@ if __name__ == '__main__':
 
 | 常量     | 说明     | 适用平台                                                     |
 | -------- | -------- | ------------------------------------------------------------ |
-| ADC.ADC0 | ADC通道0 | EC600S/EC600N/EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC200A/EC600M |
-| ADC.ADC1 | ADC通道1 | EC600S/EC600N/EC600U/EC200U/EC200A/EC600M                    |
+| ADC.ADC0 | ADC通道0 | EC600S/EC600N/EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC200A/EC600M/EG915U/EC800M/EG912N |
+| ADC.ADC1 | ADC通道1 | EC600U/EC200U/EC200A/EC600M/EG915U/EC800M/EG912N             |
 | ADC.ADC2 | ADC通道2 | EC600U/EC200U                                                |
 | ADC.ADC3 | ADC通道3 | EC600U                                                       |
 
@@ -5419,7 +5754,7 @@ ADC功能初始化。
 
 | 参数 | 参数类型 | 参数说明                                                     |
 | ---- | -------- | ------------------------------------------------------------ |
-| ADCn | int      | ADC通道<br/>EC100Y平台对应引脚如下<br/>ADC0 – 引脚号39<br/>ADC1 – 引脚号81<br/>EC600S/EC600N平台对应引脚如下<br/>ADC0 – 引脚号19<br/>EC600M平台对应引脚如下<br/>ADC0 – 引脚号19<br/>ADC1 – 引脚号20<br/>EC800N平台对应引脚如下<br/>ADC0 – 引脚号9<br/>EC600U平台对应引脚如下<br />ADC0 – 引脚号19<br/>ADC1 – 引脚号20<br />ADC2 – 引脚号113<br />ADC3 – 引脚号114<br />EC200U平台对应引脚如下<br />ADC0 – 引脚号45<br/>ADC1 – 引脚号44<br />ADC2 – 引脚号43<br />EC200A平台对应引脚如下<br/>ADC0 – 引脚号45<br/>ADC1 – 引脚号44<br/>BG95M3平台对应引脚如下<br/>ADC0 – 引脚号24 |
+| ADCn | int      | ADC通道<br/>EC100Y平台对应引脚如下<br/>ADC0 – 引脚号39<br/>ADC1 – 引脚号81<br/>EC600S/EC600N平台对应引脚如下<br/>ADC0 – 引脚号19<br/>EC600M平台对应引脚如下<br/>ADC0 – 引脚号19<br/>ADC1 – 引脚号20<br/>EC800N平台对应引脚如下<br/>ADC0 – 引脚号9<br/>EC600U平台对应引脚如下<br />ADC0 – 引脚号19<br/>ADC1 – 引脚号20<br />ADC2 – 引脚号113<br />ADC3 – 引脚号114<br />EC200U平台对应引脚如下<br />ADC0 – 引脚号45<br/>ADC1 – 引脚号44<br />ADC2 – 引脚号43<br />EC200A平台对应引脚如下<br/>ADC0 – 引脚号45<br/>ADC1 – 引脚号44<br/>BG95M3平台对应引脚如下<br/>ADC0 – 引脚号24<br/>EG915U平台对应引脚如下<br/>ADC0 – 引脚号24<br/>ADC1 – 引脚号2<br/>EC800M平台对应引脚如下<br/>ADC0 – 引脚号9<br/>ADC1 – 引脚号96<br/>EG912N平台对应引脚如下<br/>ADC0 – 引脚号24<br/>ADC1 – 引脚号2 |
 
 * 返回值
 
@@ -5636,6 +5971,103 @@ USBNET.open()
 
 
 
+###### 获取Nat使能情况
+
+> **USBNET.getNat(simid, pid)**
+
+获取某一路网卡的Nat使能情况（是否支持ipv6拨号）
+
+（仅在EC200U/EC600U平台支持）
+
+* 参数
+
+| 参数  | 参数类型 | 参数说明                       |
+| ----- | -------- | ------------------------------ |
+| simid | int      | simid，范围：0/1 ，目前仅支持0 |
+| pid   | int      | PDP索引, 展锐平台范围1-7       |
+
+* 返回值
+
+成功：返回Nat使能情况，整型0/1，0：使能，支持ipv6拨号；1：未使能，不支持ipv6拨号
+
+失败：返回整型-1
+
+* 示例
+
+```python
+from misc import USBNET
+USBNET.getNat(0, 1)
+0
+```
+
+
+
+###### Nat设置
+
+> **USBNET.setNat(simid, pid, Nat)**
+
+Nat设置，设置成功后重启生效（仅在EC200U/EC600U平台支持）
+（USBNET.set_worktype()接口调用的时候会使对应的Nat值变为1，使得该pid无法IPV6拨号，所以在close USBnet后，可以使用该接口关闭NAT,使IPV6功能正常）
+
+* 参数
+
+| 参数  | 参数类型 | 参数说明                                           |
+| ----- | -------- | -------------------------------------------------- |
+| simid | int      | simid，范围：0/1，目前仅支持0                      |
+| pid   | int      | PDP索引, 展锐平台范围1-7                           |
+| Nat   | int      | Nat，范围：0/1；0：支持ipv6拨号；1：不支持ipv6拨号 |
+
+* 返回值
+
+设置成功返回整型0，设置失败返回整型-1
+
+* 示例
+
+```python
+USBNET.setNat(0, 1, 0)
+0
+```
+
+
+
+##### 分集天线配置接口
+
+> **misc.antennaSecRXOffCtrl(\*args)**
+
+分集天线配置、查询接口。（仅1803S平台支持该接口）
+
+* 参数
+
+  该接口为可变参形式：
+    参数个数为0,查询：misc.antennaSecRXOffCtrl()
+    参数个数为1，配置：misc.antennaSecRXOffCtrl(SecRXOff_set)
+	
+  |     参数      | 参数类型 | 参数说明                                              |
+  |    ------     | -------- | ----------------------------------------------------- |
+  | SecRXOff_set  | int      | 范围0/1, 0:不关闭分集天线 1:关闭分集天线              |
+
+* 返回值
+
+  查询：成功返回分集天线配置，失败返回整形值-1
+
+  设置：成功返回整形0,失败返回整型值-1
+
+* 示例
+
+```python
+import misc
+
+misc.antennaSecRXOffCtrl()
+0
+misc.antennaSecRXOffCtrl(1)
+0
+misc.antennaSecRXOffCtrl()
+1
+
+```
+
+
+
 #### modem - 设备相关
 
 模块功能：设备信息获取。
@@ -5768,50 +6200,50 @@ USBNET.open()
 
 | 常量             | 适配平台                   | 说明      |
 | ---------------- | ------------------------ | -------- |
-| Pin.GPIO1        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO1    |
-| Pin.GPIO2        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO2    |
-| Pin.GPIO3        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO3    |
-| Pin.GPIO4        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO4    |
-| Pin.GPIO5        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO5    |
-| Pin.GPIO6        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO6    |
-| Pin.GPIO7        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO7    |
-| Pin.GPIO8        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO8    |
-| Pin.GPIO9        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO9    |
-| Pin.GPIO10       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO10   |
-| Pin.GPIO11       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO11   |
-| Pin.GPIO12       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO12   |
-| Pin.GPIO13       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO13   |
-| Pin.GPIO14       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO14   |
-| Pin.GPIO15       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO15   |
-| Pin.GPIO16       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO16   |
-| Pin.GPIO17       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/BC25PA/BG95M3/EC600M | GPIO17   |
-| Pin.GPIO18       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BC25PA/BG95M3/EC600M | GPIO18   |
-| Pin.GPIO19       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M | GPIO19   |
-| Pin.GPIO20       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M | GPIO20   |
-| Pin.GPIO21       | EC600S / EC600N/EC600U/EC200U/EC800N/BG95M3/EC600M | GPIO21   |
-| Pin.GPIO22       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO22   |
-| Pin.GPIO23       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO23   |
-| Pin.GPIO24       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO24   |
-| Pin.GPIO25       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO25   |
-| Pin.GPIO26       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO26   |
-| Pin.GPIO27       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO27   |
-| Pin.GPIO28       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO28   |
-| Pin.GPIO29       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO29   |
-| Pin.GPIO30 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO30 |
-| Pin.GPIO31 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO31 |
-| Pin.GPIO32 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO32 |
-| Pin.GPIO33 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO33 |
-| Pin.GPIO34 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO34 |
-| Pin.GPIO35 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO35 |
-| Pin.GPIO36 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M | GPIO36 |
-| Pin.GPIO37 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M | GPIO37 |
-| Pin.GPIO38 | EC600S / EC600N/EC600U/EC200U/EC600M | GPIO38 |
-| Pin.GPIO39 | EC600S / EC600N/EC600U/EC200U/EC600M | GPIO39 |
-| Pin.GPIO40 | EC600S / EC600N/EC600U/EC200U/EC600M | GPIO40 |
-| Pin.GPIO41 | EC600S / EC600N/EC600U/EC200U/EC600M | GPIO41 |
-| Pin.GPIO42 | EC600U/EC200U/EC600M | GPIO42 |
-| Pin.GPIO43 | EC600U/EC200U/EC200A/EC600M | GPIO43 |
-| Pin.GPIO44 | EC600U/EC200U/EC200A/EC600M | GPIO44 |
+| Pin.GPIO1        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO1    |
+| Pin.GPIO2        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO2    |
+| Pin.GPIO3        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO3    |
+| Pin.GPIO4        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO4    |
+| Pin.GPIO5        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO5    |
+| Pin.GPIO6        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO6    |
+| Pin.GPIO7        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO7    |
+| Pin.GPIO8        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO8    |
+| Pin.GPIO9        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO9    |
+| Pin.GPIO10       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO10   |
+| Pin.GPIO11       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO11   |
+| Pin.GPIO12       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO12   |
+| Pin.GPIO13       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO13   |
+| Pin.GPIO14       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO14   |
+| Pin.GPIO15       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO15   |
+| Pin.GPIO16       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO16   |
+| Pin.GPIO17       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO17   |
+| Pin.GPIO18       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO18   |
+| Pin.GPIO19       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO19   |
+| Pin.GPIO20       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO20   |
+| Pin.GPIO21       | EC600S / EC600N/EC600U/EC200U/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO21   |
+| Pin.GPIO22       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO22   |
+| Pin.GPIO23       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO23   |
+| Pin.GPIO24       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO24   |
+| Pin.GPIO25       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO25   |
+| Pin.GPIO26       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO26   |
+| Pin.GPIO27       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO27   |
+| Pin.GPIO28       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO28   |
+| Pin.GPIO29       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO29   |
+| Pin.GPIO30 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO30 |
+| Pin.GPIO31 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO31 |
+| Pin.GPIO32 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO32 |
+| Pin.GPIO33 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO33 |
+| Pin.GPIO34 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO34 |
+| Pin.GPIO35 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO35 |
+| Pin.GPIO36 | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO36 |
+| Pin.GPIO37 | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO37 |
+| Pin.GPIO38 | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N | GPIO38 |
+| Pin.GPIO39 | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N | GPIO39 |
+| Pin.GPIO40 | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N | GPIO40 |
+| Pin.GPIO41 | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M | GPIO41 |
+| Pin.GPIO42 | EC600U/EC200U/EC600M/EC800M | GPIO42 |
+| Pin.GPIO43 | EC600U/EC200U/EC200A/EC600M/EC800M | GPIO43 |
+| Pin.GPIO44 | EC600U/EC200U/EC200A/EC600M/EC800M | GPIO44 |
 | Pin.GPIO45 | EC600U/EC200U/EC200A/EC600M | GPIO45 |
 | Pin.GPIO46 | EC600U/EC200U/EC200A | GPIO46 |
 | Pin.GPIO47 | EC200U/EC200A | GPIO47 |
@@ -5835,7 +6267,7 @@ USBNET.open()
 
 | 参数      | 类型 | 说明                                                         |
 | :-------- | :--- | ------------------------------------------------------------ |
-| GPIOn     | int  | 引脚号<br />EC100YCN平台引脚对应关系如下（引脚号为外部引脚编号）：<br />GPIO1 – 引脚号22<br />GPIO2 – 引脚号23<br />GPIO3 – 引脚号38<br />GPIO4 – 引脚号53<br />GPIO5 – 引脚号54<br />GPIO6 – 引脚号104<br />GPIO7 – 引脚号105<br />GPIO8 – 引脚号106<br />GPIO9 – 引脚号107<br />GPIO10 – 引脚号178<br />GPIO11 – 引脚号195<br />GPIO12 – 引脚号196<br />GPIO13 – 引脚号197<br />GPIO14 – 引脚号198<br />GPIO15 – 引脚号199<br />GPIO16 – 引脚号203<br />GPIO17 – 引脚号204<br />GPIO18 – 引脚号214<br />GPIO19 – 引脚号215<br />EC600SCN/EC600NCN平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号10<br />GPIO2 – 引脚号11<br />GPIO3 – 引脚号12<br />GPIO4 – 引脚号13<br />GPIO5 – 引脚号14<br />GPIO6 – 引脚号15<br />GPIO7 – 引脚号16<br />GPIO8 – 引脚号39<br />GPIO9 – 引脚号40<br />GPIO10 – 引脚号48<br />GPIO11 – 引脚号58<br />GPIO12 – 引脚号59<br />GPIO13 – 引脚号60<br />GPIO14 – 引脚号61<br />GPIO15 – 引脚号62<br/>GPIO16 – 引脚号63<br/>GPIO17 – 引脚号69<br/>GPIO18 – 引脚号70<br/>GPIO19 – 引脚号1<br/>GPIO20 – 引脚号3<br/>GPIO21 – 引脚号49<br/>GPIO22 – 引脚号50<br/>GPIO23 – 引脚号51<br/>GPIO24 – 引脚号52<br/>GPIO25 – 引脚号53<br/>GPIO26 – 引脚号54<br/>GPIO27 – 引脚号55<br/>GPIO28 – 引脚号56<br/>GPIO29 – 引脚号57<br />GPIO30 – 引脚号2<br />GPIO31 – 引脚号66<br />GPIO32 – 引脚号65<br />GPIO33 – 引脚号67<br />GPIO34 – 引脚号64<br />GPIO35 – 引脚号4<br />GPIO36 – 引脚号31<br />GPIO37 – 引脚号32<br />GPIO38 – 引脚号33<br />GPIO39 – 引脚号34<br />GPIO40 – 引脚号71<br />GPIO41 – 引脚号72<br />EC600M平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号10<br />GPIO2 – 引脚号11<br />GPIO3 – 引脚号12<br />GPIO4 – 引脚号13<br />GPIO5 – 引脚号14<br />GPIO6 – 引脚号15<br />GPIO7 – 引脚号16<br />GPIO8 – 引脚号39<br />GPIO9 – 引脚号40<br />GPIO10 – 引脚号48<br />GPIO11 – 引脚号58<br />GPIO12 – 引脚号59<br />GPIO13 – 引脚号60<br />GPIO14 – 引脚号61<br />GPIO15 – 引脚号62<br/>GPIO16 – 引脚号63<br/>GPIO17 – 引脚号69<br/>GPIO18 – 引脚号70<br/>GPIO19 – 引脚号1<br/>GPIO20 – 引脚号3<br/>GPIO21 – 引脚号49<br/>GPIO22 – 引脚号50<br/>GPIO23 – 引脚号51<br/>GPIO24 – 引脚号52<br/>GPIO25 – 引脚号53<br/>GPIO26 – 引脚号54<br/>GPIO27 – 引脚号55<br/>GPIO28 – 引脚号56<br/>GPIO29 – 引脚号57<br />GPIO30 – 引脚号2<br />GPIO31 – 引脚号66<br />GPIO32 – 引脚号65<br />GPIO33 – 引脚号67<br />GPIO34 – 引脚号64<br />GPIO35 – 引脚号4<br />GPIO36 – 引脚号31<br />GPIO37 – 引脚号32<br />GPIO38 – 引脚号33<br />GPIO39 – 引脚号34<br />GPIO40 – 引脚号71<br />GPIO41 – 引脚号72<br />GPIO42 – 引脚号109<br />GPIO43 – 引脚号110<br />GPIO44 – 引脚号112<br />GPIO45 – 引脚号111<br/>EC600UCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号61(不可与GPIO31同时为gpio)<br />GPIO2 – 引脚号58(不可与GPIO32同时为gpio)<br />GPIO3 – 引脚号34(不可与GPIO41同时为gpio)<br />GPIO4 – 引脚号60(不可与GPIO34同时为gpio)<br />GPIO5 – 引脚号69(不可与GPIO35同时为gpio)<br />GPIO6 – 引脚号70(不可与GPIO36同时为gpio)<br />GPIO7 – 引脚号123(不可与GPIO43同时为gpio)<br />GPIO8 – 引脚号118<br />GPIO9 – 引脚号9<br />GPIO10 – 引脚号1(不可与GPIO37同时为gpio)<br />GPIO11 – 引脚号4(不可与GPIO38同时为gpio)<br />GPIO12 – 引脚号3(不可与GPIO39同时为gpio)<br />GPIO13 – 引脚号2(不可与GPIO40同时为gpio)<br />GPIO14 – 引脚号54<br />GPIO15 – 引脚号57<br/>GPIO16 – 引脚号56<br/>GPIO17 – 引脚号12<br/>GPIO18 – 引脚号33(不可与GPIO42同时为gpio)<br/>GPIO19 – 引脚号124(不可与GPIO44同时为gpio)<br/>GPIO20 – 引脚号122(不可与GPIO45同时为gpio)<br/>GPIO21 – 引脚号121(不可与GPIO46同时为gpio)<br/>GPIO22 – 引脚号48<br/>GPIO23 – 引脚号39<br/>GPIO24 – 引脚号40<br/>GPIO25 – 引脚号49<br/>GPIO26 – 引脚号50<br/>GPIO27 – 引脚号53<br/>GPIO28 – 引脚号52<br/>GPIO29 – 引脚号51<br/>GPIO30 – 引脚号59(不可与GPIO33同时为gpio)<br/>GPIO31 – 引脚号66(不可与GPIO1同时为gpio)<br/>GPIO32 – 引脚号63(不可与GPIO2同时为gpio)<br/>GPIO33 – 引脚号67(不可与GPIO30同时为gpio)<br/>GPIO34 – 引脚号65(不可与GPIO4同时为gpio)<br/>GPIO35 – 引脚号137(不可与GPIO5同时为gpio)<br/>GPIO36 – 引脚号62(不可与GPIO6同时为gpio)<br/>GPIO37 – 引脚号98(不可与GPIO10同时为gpio)<br/>GPIO38 – 引脚号95(不可与GPIO11同时为gpio)<br/>GPIO39 – 引脚号119(不可与GPIO12同时为gpio)<br/>GPIO40 – 引脚号100(不可与GPIO13同时为gpio)<br/>GPIO41 – 引脚号120(不可与GPIO3同时为gpio)<br/>GPIO42 – 引脚号16(不可与GPIO18同时为gpio)<br/>GPIO43 – 引脚号10(不可与GPIO7同时为gpio)<br/>GPIO44 – 引脚号14(不可与GPIO19同时为gpio)<br/>GPIO45 – 引脚号15(不可与GPIO20同时为gpio)<br/>GPIO46 – 引脚号13(不可与GPIO21同时为gpio)<br/>EC200UCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号27(不可与GPIO31同时为gpio)<br />GPIO2 – 引脚号26(不可与GPIO32同时为gpio)<br />GPIO3 – 引脚号24(不可与GPIO33同时为gpio)<br />GPIO4 – 引脚号25(不可与GPIO34同时为gpio)<br />GPIO5 – 引脚号13(不可与GPIO17同时为gpio)<br />GPIO6 – 引脚号135(不可与GPIO36同时为gpio)<br />GPIO7 – 引脚号136(不可与GPIO44同时为gpio)<br />GPIO8 – 引脚号133<br />GPIO9 – 引脚号3(不可与GPIO37同时为gpio)<br />GPIO10 – 引脚号40(不可与GPIO38同时为gpio)<br />GPIO11 – 引脚号37(不可与GPIO39同时为gpio)<br />GPIO12 – 引脚号38(不可与GPIO40同时为gpio)<br />GPIO13 – 引脚号39(不可与GPIO41同时为gpio)<br />GPIO14 – 引脚号5<br />GPIO15 – 引脚号141<br/>GPIO16 – 引脚号142<br/>GPIO17 – 引脚号121(不可与GPIO5同时为gpio)<br/>GPIO18 – 引脚号65(不可与GPIO42同时为gpio)<br/>GPIO19 – 引脚号64(不可与GPIO43同时为gpio)<br/>GPIO20 – 引脚号139(不可与GPIO45同时为gpio)<br/>GPIO21 – 引脚号126(不可与GPIO46同时为gpio)<br/>GPIO22 – 引脚号127(不可与GPIO47同时为gpio)<br/>GPIO23 – 引脚号33<br/>GPIO24– 引脚号31<br/>GPIO25 – 引脚号30<br/>GPIO26 – 引脚号29<br/>GPIO27 – 引脚号28<br/>GPIO28 – 引脚号1<br/>GPIO29 – 引脚号2<br/>GPIO30 – 引脚号4<br/>GPIO31 – 引脚号125(不可与GPIO1同时为gpio)<br/>GPIO32 – 引脚号124(不可与GPIO2同时为gpio)<br/>GPIO33 – 引脚号123(不可与GPIO3同时为gpio)<br/>GPIO34 – 引脚号122(不可与GPIO4同时为gpio)<br/>GPIO35 – 引脚号42<br/>GPIO36 – 引脚号119(不可与GPIO6同时为gpio)<br/>GPIO37 – 引脚号134(不可与GPIO9同时为gpio)<br/>GPIO38– 引脚号132(不可与GPIO10同时为gpio)<br/>GPIO39 – 引脚号131(不可与GPIO11同时为gpio)<br/>GPIO40 – 引脚号130(不可与GPIO12同时为gpio)<br/>GPIO41 – 引脚号129(不可与GPIO13同时为gpio)<br/>GPIO42 – 引脚号61(不可与GPIO18同时为gpio)<br/>GPIO43 – 引脚号62(不可与GPIO19同时为gpio)<br/>GPIO44 – 引脚号63(不可与GPIO7同时为gpio)<br/>GPIO45 – 引脚号66(不可与GPIO20同时为gpio)<br/>GPIO46 – 引脚号6(不可与GPIO21同时为gpio)<br/>GPIO47 – 引脚号23(不可与GPIO22同时为gpio)<br/>EC200A平台引脚对应关系如下（引脚号为模块外部引脚编号）<br/>GPIO1 – 引脚号27<br />GPIO2 – 引脚号26<br />GPIO3 – 引脚号24<br />GPIO4 – 引脚号25<br />GPIO6 – 引脚号135<br />GPIO7 – 引脚号136<br />GPIO9 – 引脚号3<br />GPIO10 – 引脚号40<br />GPIO11 – 引脚号37<br />GPIO12 – 引脚号38<br />GPIO13 – 引脚号39<br />GPIO18 – 引脚号65<br />GPIO19 – 引脚号64<br />GPIO20 – 引脚号139<br />GPIO22 – 引脚号127<br />GPIO28 – 引脚号1<br />GPIO29 – 引脚号2<br />GPIO30 – 引脚号4<br />GPIO35 – 引脚号42<br />GPIO36 – 引脚号119<br />GPIO43 – 引脚号62<br />GPIO44 – 引脚号63<br />GPIO45 – 引脚号66<br />GPIO46 – 引脚号6<br />GPIO47 – 引脚号23<br/>EC800NCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号30<br />GPIO2 – 引脚号31<br />GPIO3 – 引脚号32<br />GPIO4 – 引脚号33<br />GPIO5 – 引脚号49<br />GPIO6 – 引脚号50<br />GPIO7 – 引脚号51<br />GPIO8 – 引脚号52<br />GPIO9 – 引脚号53<br />GPIO10 – 引脚号54<br />GPIO11 – 引脚号55<br />GPIO12 – 引脚号56<br />GPIO13 – 引脚号57<br />GPIO14 – 引脚号58<br />GPIO15 – 引脚号80<br/>GPIO16 – 引脚号81<br/>GPIO17 – 引脚号76<br/>GPIO18 – 引脚号77<br/>GPIO19 – 引脚号82<br/>GPIO20 – 引脚号83<br/>GPIO21 – 引脚号86<br/>GPIO22 – 引脚号87<br/>GPIO23 – 引脚号66<br/>GPIO24 – 引脚号67<br/>GPIO25 – 引脚号17<br/>GPIO26 – 引脚号18<br/>GPIO27 – 引脚号19<br/>GPIO28 – 引脚号20<br/>GPIO29 – 引脚号21<br />GPIO30 – 引脚号22<br />GPIO31 – 引脚号23<br />GPIO32 – 引脚号28<br />GPIO33 – 引脚号29<br />GPIO34 – 引脚号38<br />GPIO35 – 引脚号39<br />GPIO36 – 引脚号16<br />GPIO37 – 引脚号78<br />BC25PA平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号3<br />GPIO2 – 引脚号4<br />GPIO3 – 引脚号5<br />GPIO4 – 引脚号6<br />GPIO5 – 引脚号16<br />GPIO6 – 引脚号20<br />GPIO7 – 引脚号21<br />GPIO8 – 引脚号22<br />GPIO9 – 引脚号23<br />GPIO10 – 引脚号25<br />GPIO11 – 引脚号28<br />GPIO12 – 引脚号29<br />GPIO13 – 引脚号30<br />GPIO14 – 引脚号31<br />GPIO15 – 引脚号32<br/>GPIO16 – 引脚号33<br/>GPIO17 – 引脚号2<br/>GPIO18 – 引脚号8<br/>BG95M3平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号4<br />GPIO2 – 引脚号5<br />GPIO3 – 引脚号6<br />GPIO4 – 引脚号7<br />GPIO5 – 引脚号18<br />GPIO6 – 引脚号19<br />GPIO7 – 引脚号22<br />GPIO8 – 引脚号23<br />GPIO9 – 引脚号25<br />GPIO10 – 引脚号26<br />GPIO11 – 引脚号27<br />GPIO12 – 引脚号28<br />GPIO13 – 引脚号40<br />GPIO14 – 引脚号41<br />GPIO15 – 引脚号64<br/>GPIO16 – 引脚号65<br/>GPIO17 – 引脚号66<br />GPIO18 – 引脚号85<br />GPIO19 – 引脚号86<br />GPIO20 – 引脚号87<br />GPIO21 – 引脚号88 |
+| GPIOn     | int  | 引脚号<br />EC100YCN平台引脚对应关系如下（引脚号为外部引脚编号）：<br />GPIO1 – 引脚号22<br />GPIO2 – 引脚号23<br />GPIO3 – 引脚号38<br />GPIO4 – 引脚号53<br />GPIO5 – 引脚号54<br />GPIO6 – 引脚号104<br />GPIO7 – 引脚号105<br />GPIO8 – 引脚号106<br />GPIO9 – 引脚号107<br />GPIO10 – 引脚号178<br />GPIO11 – 引脚号195<br />GPIO12 – 引脚号196<br />GPIO13 – 引脚号197<br />GPIO14 – 引脚号198<br />GPIO15 – 引脚号199<br />GPIO16 – 引脚号203<br />GPIO17 – 引脚号204<br />GPIO18 – 引脚号214<br />GPIO19 – 引脚号215<br />EC600SCN/EC600NCN平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号10<br />GPIO2 – 引脚号11<br />GPIO3 – 引脚号12<br />GPIO4 – 引脚号13<br />GPIO5 – 引脚号14<br />GPIO6 – 引脚号15<br />GPIO7 – 引脚号16<br />GPIO8 – 引脚号39<br />GPIO9 – 引脚号40<br />GPIO10 – 引脚号48<br />GPIO11 – 引脚号58<br />GPIO12 – 引脚号59<br />GPIO13 – 引脚号60<br />GPIO14 – 引脚号61<br />GPIO15 – 引脚号62<br/>GPIO16 – 引脚号63<br/>GPIO17 – 引脚号69<br/>GPIO18 – 引脚号70<br/>GPIO19 – 引脚号1<br/>GPIO20 – 引脚号3<br/>GPIO21 – 引脚号49<br/>GPIO22 – 引脚号50<br/>GPIO23 – 引脚号51<br/>GPIO24 – 引脚号52<br/>GPIO25 – 引脚号53<br/>GPIO26 – 引脚号54<br/>GPIO27 – 引脚号55<br/>GPIO28 – 引脚号56<br/>GPIO29 – 引脚号57<br />GPIO30 – 引脚号2<br />GPIO31 – 引脚号66<br />GPIO32 – 引脚号65<br />GPIO33 – 引脚号67<br />GPIO34 – 引脚号64<br />GPIO35 – 引脚号4<br />GPIO36 – 引脚号31<br />GPIO37 – 引脚号32<br />GPIO38 – 引脚号33<br />GPIO39 – 引脚号34<br />GPIO40 – 引脚号71<br />GPIO41 – 引脚号72<br />EC600M平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号10<br />GPIO2 – 引脚号11<br />GPIO3 – 引脚号12<br />GPIO4 – 引脚号13<br />GPIO5 – 引脚号14<br />GPIO6 – 引脚号15<br />GPIO7 – 引脚号16<br />GPIO8 – 引脚号39<br />GPIO9 – 引脚号40<br />GPIO10 – 引脚号48<br />GPIO11 – 引脚号58<br />GPIO12 – 引脚号59<br />GPIO13 – 引脚号60<br />GPIO14 – 引脚号61<br />GPIO15 – 引脚号62<br/>GPIO16 – 引脚号63<br/>GPIO17 – 引脚号69<br/>GPIO18 – 引脚号70<br/>GPIO19 – 引脚号1<br/>GPIO20 – 引脚号3<br/>GPIO21 – 引脚号49<br/>GPIO22 – 引脚号50<br/>GPIO23 – 引脚号51<br/>GPIO24 – 引脚号52<br/>GPIO25 – 引脚号53<br/>GPIO26 – 引脚号54<br/>GPIO27 – 引脚号55<br/>GPIO28 – 引脚号56<br/>GPIO29 – 引脚号57<br />GPIO30 – 引脚号2<br />GPIO31 – 引脚号66<br />GPIO32 – 引脚号65<br />GPIO33 – 引脚号67<br />GPIO34 – 引脚号64<br />GPIO35 – 引脚号4<br />GPIO36 – 引脚号31<br />GPIO37 – 引脚号32<br />GPIO38 – 引脚号33<br />GPIO39 – 引脚号34<br />GPIO40 – 引脚号71<br />GPIO41 – 引脚号72<br />GPIO42 – 引脚号109<br />GPIO43 – 引脚号110<br />GPIO44 – 引脚号112<br />GPIO45 – 引脚号111<br/>EC600UCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号61(不可与GPIO31同时为gpio)<br />GPIO2 – 引脚号58(不可与GPIO32同时为gpio)<br />GPIO3 – 引脚号34(不可与GPIO41同时为gpio)<br />GPIO4 – 引脚号60(不可与GPIO34同时为gpio)<br />GPIO5 – 引脚号69(不可与GPIO35同时为gpio)<br />GPIO6 – 引脚号70(不可与GPIO36同时为gpio)<br />GPIO7 – 引脚号123(不可与GPIO43同时为gpio)<br />GPIO8 – 引脚号118<br />GPIO9 – 引脚号9<br />GPIO10 – 引脚号1(不可与GPIO37同时为gpio)<br />GPIO11 – 引脚号4(不可与GPIO38同时为gpio)<br />GPIO12 – 引脚号3(不可与GPIO39同时为gpio)<br />GPIO13 – 引脚号2(不可与GPIO40同时为gpio)<br />GPIO14 – 引脚号54<br />GPIO15 – 引脚号57<br/>GPIO16 – 引脚号56<br/>GPIO17 – 引脚号12<br/>GPIO18 – 引脚号33(不可与GPIO42同时为gpio)<br/>GPIO19 – 引脚号124(不可与GPIO44同时为gpio)<br/>GPIO20 – 引脚号122(不可与GPIO45同时为gpio)<br/>GPIO21 – 引脚号121(不可与GPIO46同时为gpio)<br/>GPIO22 – 引脚号48<br/>GPIO23 – 引脚号39<br/>GPIO24 – 引脚号40<br/>GPIO25 – 引脚号49<br/>GPIO26 – 引脚号50<br/>GPIO27 – 引脚号53<br/>GPIO28 – 引脚号52<br/>GPIO29 – 引脚号51<br/>GPIO30 – 引脚号59(不可与GPIO33同时为gpio)<br/>GPIO31 – 引脚号66(不可与GPIO1同时为gpio)<br/>GPIO32 – 引脚号63(不可与GPIO2同时为gpio)<br/>GPIO33 – 引脚号67(不可与GPIO30同时为gpio)<br/>GPIO34 – 引脚号65(不可与GPIO4同时为gpio)<br/>GPIO35 – 引脚号137(不可与GPIO5同时为gpio)<br/>GPIO36 – 引脚号62(不可与GPIO6同时为gpio)<br/>GPIO37 – 引脚号98(不可与GPIO10同时为gpio)<br/>GPIO38 – 引脚号95(不可与GPIO11同时为gpio)<br/>GPIO39 – 引脚号119(不可与GPIO12同时为gpio)<br/>GPIO40 – 引脚号100(不可与GPIO13同时为gpio)<br/>GPIO41 – 引脚号120(不可与GPIO3同时为gpio)<br/>GPIO42 – 引脚号16(不可与GPIO18同时为gpio)<br/>GPIO43 – 引脚号10(不可与GPIO7同时为gpio)<br/>GPIO44 – 引脚号14(不可与GPIO19同时为gpio)<br/>GPIO45 – 引脚号15(不可与GPIO20同时为gpio)<br/>GPIO46 – 引脚号13(不可与GPIO21同时为gpio)<br/>EC200UCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号27(不可与GPIO31同时为gpio)<br />GPIO2 – 引脚号26(不可与GPIO32同时为gpio)<br />GPIO3 – 引脚号24(不可与GPIO33同时为gpio)<br />GPIO4 – 引脚号25(不可与GPIO34同时为gpio)<br />GPIO5 – 引脚号13(不可与GPIO17同时为gpio)<br />GPIO6 – 引脚号135(不可与GPIO36同时为gpio)<br />GPIO7 – 引脚号136(不可与GPIO44同时为gpio)<br />GPIO8 – 引脚号133<br />GPIO9 – 引脚号3(不可与GPIO37同时为gpio)<br />GPIO10 – 引脚号40(不可与GPIO38同时为gpio)<br />GPIO11 – 引脚号37(不可与GPIO39同时为gpio)<br />GPIO12 – 引脚号38(不可与GPIO40同时为gpio)<br />GPIO13 – 引脚号39(不可与GPIO41同时为gpio)<br />GPIO14 – 引脚号5<br />GPIO15 – 引脚号141<br/>GPIO16 – 引脚号142<br/>GPIO17 – 引脚号121(不可与GPIO5同时为gpio)<br/>GPIO18 – 引脚号65(不可与GPIO42同时为gpio)<br/>GPIO19 – 引脚号64(不可与GPIO43同时为gpio)<br/>GPIO20 – 引脚号139(不可与GPIO45同时为gpio)<br/>GPIO21 – 引脚号126(不可与GPIO46同时为gpio)<br/>GPIO22 – 引脚号127(不可与GPIO47同时为gpio)<br/>GPIO23 – 引脚号33<br/>GPIO24– 引脚号31<br/>GPIO25 – 引脚号30<br/>GPIO26 – 引脚号29<br/>GPIO27 – 引脚号28<br/>GPIO28 – 引脚号1<br/>GPIO29 – 引脚号2<br/>GPIO30 – 引脚号4<br/>GPIO31 – 引脚号125(不可与GPIO1同时为gpio)<br/>GPIO32 – 引脚号124(不可与GPIO2同时为gpio)<br/>GPIO33 – 引脚号123(不可与GPIO3同时为gpio)<br/>GPIO34 – 引脚号122(不可与GPIO4同时为gpio)<br/>GPIO35 – 引脚号42<br/>GPIO36 – 引脚号119(不可与GPIO6同时为gpio)<br/>GPIO37 – 引脚号134(不可与GPIO9同时为gpio)<br/>GPIO38– 引脚号132(不可与GPIO10同时为gpio)<br/>GPIO39 – 引脚号131(不可与GPIO11同时为gpio)<br/>GPIO40 – 引脚号130(不可与GPIO12同时为gpio)<br/>GPIO41 – 引脚号129(不可与GPIO13同时为gpio)<br/>GPIO42 – 引脚号61(不可与GPIO18同时为gpio)<br/>GPIO43 – 引脚号62(不可与GPIO19同时为gpio)<br/>GPIO44 – 引脚号63(不可与GPIO7同时为gpio)<br/>GPIO45 – 引脚号66(不可与GPIO20同时为gpio)<br/>GPIO46 – 引脚号6(不可与GPIO21同时为gpio)<br/>GPIO47 – 引脚号23(不可与GPIO22同时为gpio)<br/>EC200A平台引脚对应关系如下（引脚号为模块外部引脚编号）<br/>GPIO1 – 引脚号27<br />GPIO2 – 引脚号26<br />GPIO3 – 引脚号24<br />GPIO4 – 引脚号25<br />GPIO5 – 引脚号5<br />GPIO6 – 引脚号135<br />GPIO7 – 引脚号136<br />GPIO9 – 引脚号3<br />GPIO10 – 引脚号40<br />GPIO11 – 引脚号37<br />GPIO12 – 引脚号38<br />GPIO13 – 引脚号39<br />GPIO18 – 引脚号65<br />GPIO19 – 引脚号64<br />GPIO20 – 引脚号139<br />GPIO22 – 引脚号127<br />GPIO28 – 引脚号1<br />GPIO29 – 引脚号2<br />GPIO30 – 引脚号4<br />GPIO35 – 引脚号42<br />GPIO36 – 引脚号119<br />GPIO43 – 引脚号62<br />GPIO44 – 引脚号63<br />GPIO45 – 引脚号66<br />GPIO46 – 引脚号6<br />GPIO47 – 引脚号23<br/>EC800NCN平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号30<br />GPIO2 – 引脚号31<br />GPIO3 – 引脚号32<br />GPIO4 – 引脚号33<br />GPIO5 – 引脚号49<br />GPIO6 – 引脚号50<br />GPIO7 – 引脚号51<br />GPIO8 – 引脚号52<br />GPIO9 – 引脚号53<br />GPIO10 – 引脚号54<br />GPIO11 – 引脚号55<br />GPIO12 – 引脚号56<br />GPIO13 – 引脚号57<br />GPIO14 – 引脚号58<br />GPIO15 – 引脚号80<br/>GPIO16 – 引脚号81<br/>GPIO17 – 引脚号76<br/>GPIO18 – 引脚号77<br/>GPIO19 – 引脚号82<br/>GPIO20 – 引脚号83<br/>GPIO21 – 引脚号86<br/>GPIO22 – 引脚号87<br/>GPIO23 – 引脚号66<br/>GPIO24 – 引脚号67<br/>GPIO25 – 引脚号17<br/>GPIO26 – 引脚号18<br/>GPIO27 – 引脚号19<br/>GPIO28 – 引脚号20<br/>GPIO29 – 引脚号21<br />GPIO30 – 引脚号22<br />GPIO31 – 引脚号23<br />GPIO32 – 引脚号28<br />GPIO33 – 引脚号29<br />GPIO34 – 引脚号38<br />GPIO35 – 引脚号39<br />GPIO36 – 引脚号16<br />GPIO37 – 引脚号78<br />BC25PA平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号3<br />GPIO2 – 引脚号4<br />GPIO3 – 引脚号5<br />GPIO4 – 引脚号6<br />GPIO5 – 引脚号16<br />GPIO6 – 引脚号20<br />GPIO7 – 引脚号21<br />GPIO8 – 引脚号22<br />GPIO9 – 引脚号23<br />GPIO10 – 引脚号25<br />GPIO11 – 引脚号28<br />GPIO12 – 引脚号29<br />GPIO13 – 引脚号30<br />GPIO14 – 引脚号31<br />GPIO15 – 引脚号32<br/>GPIO16 – 引脚号33<br/>GPIO17 – 引脚号2<br/>GPIO18 – 引脚号8<br/>BG95M3平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO1 – 引脚号4<br />GPIO2 – 引脚号5<br />GPIO3 – 引脚号6<br />GPIO4 – 引脚号7<br />GPIO5 – 引脚号18<br />GPIO6 – 引脚号19<br />GPIO7 – 引脚号22<br />GPIO8 – 引脚号23<br />GPIO9 – 引脚号25<br />GPIO10 – 引脚号26<br />GPIO11 – 引脚号27<br />GPIO12 – 引脚号28<br />GPIO13 – 引脚号40<br />GPIO14 – 引脚号41<br />GPIO15 – 引脚号64<br/>GPIO16 – 引脚号65<br/>GPIO17 – 引脚号66<br />GPIO18 – 引脚号85<br />GPIO19 – 引脚号86<br />GPIO20 – 引脚号87<br />GPIO21 – 引脚号88<br />EG915U平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号4(不可与GPIO41同时为gpio)<br />GPIO2 – 引脚号5(不可与GPIO36同时为gpio)<br />GPIO3 – 引脚号6(不可与GPIO35同时为gpio)<br />GPIO4 – 引脚号7(不可与GPIO24同时为gpio)<br />GPIO5 – 引脚号18<br />GPIO6 – 引脚号19<br />GPIO7 – 引脚号1(不可与GPIO37同时为gpio)<br />GPIO8 – 引脚号38<br />GPIO9 – 引脚号25<br />GPIO10 – 引脚号26<br />GPIO11 – 引脚号27(不可与GPIO32同时为gpio)<br />GPIO12 – 引脚号28(不可与GPIO31同时为gpio)<br />GPIO13 – 引脚号40<br />GPIO14 – 引脚号41<br />GPIO15 – 引脚号64<br/>GPIO16 – 引脚号20(不可与GPIO30同时为gpio)<br/>GPIO17 – 引脚号21<br/>GPIO18 – 引脚号85<br/>GPIO19 – 引脚号86<br/>GPIO20 – 引脚号30<br/>GPIO21 – 引脚号88<br/>GPIO22 – 引脚号36(不可与GPIO40同时为gpio)<br/>GPIO23 – 引脚号37(不可与GPIO38同时为gpio)<br/>GPIO24 – 引脚号16(不可与GPIO4同时为gpio)<br/>GPIO25 – 引脚号39<br/>GPIO26 – 引脚号42(不可与GPIO27同时为gpio)<br/>GPIO27 – 引脚号78(不可与GPIO26同时为gpio)<br/>GPIO28 – 引脚号83(不可与GPIO33同时为gpio)<br/>GPIO29 – 引脚号84<br />GPIO30 – 引脚号92(不可与GPIO16同时为gpio)<br />GPIO31 – 引脚号95(不可与GPIO12同时为gpio)<br />GPIO32 – 引脚号97(不可与GPIO11同时为gpio)<br />GPIO33 – 引脚号98(不可与GPIO28同时为gpio)<br />GPIO34 – 引脚号104<br />GPIO35 – 引脚号105(不可与GPIO3同时为gpio)<br />GPIO36 – 引脚号106(不可与GPIO2同时为gpio)<br />GPIO37 – 引脚号108(不可与GPIO4同时为gpio)<br />GPIO38 – 引脚号111(不可与GPIO23同时为gpio)<br />GPIO39 – 引脚号114<br />GPIO40 – 引脚号115(不可与GPIO22同时为gpio)<br />GPIO41 – 引脚号116(不可与GPIO1同时为gpio)<br />EC800M平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号30<br />GPIO2 – 引脚号31<br />GPIO3 – 引脚号32<br />GPIO4 – 引脚号33<br />GPIO5 – 引脚号49<br />GPIO6 – 引脚号50<br />GPIO7 – 引脚号51<br />GPIO8 – 引脚号52<br />GPIO9 – 引脚号53<br />GPIO10 – 引脚号54<br />GPIO11 – 引脚号55<br />GPIO12 – 引脚号56<br />GPIO13 – 引脚号57<br />GPIO14 – 引脚号58<br />GPIO15 – 引脚号80<br/>GPIO16 – 引脚号81<br/>GPIO17 – 引脚号76<br/>GPIO18 – 引脚号77<br/>GPIO19 – 引脚号82<br/>GPIO20 – 引脚号83<br/>GPIO21 – 引脚号86<br/>GPIO22 – 引脚号87<br/>GPIO23 – 引脚号66<br/>GPIO24 – 引脚号67<br/>GPIO25 – 引脚号17<br/>GPIO26 – 引脚号18<br/>GPIO27 – 引脚号19<br/>GPIO28 – 引脚号20<br/>GPIO29 – 引脚号21<br />GPIO30 – 引脚号22<br />GPIO31 – 引脚号23<br />GPIO32 – 引脚号28<br />GPIO33 – 引脚号29<br />GPIO34 – 引脚号38<br />GPIO35 – 引脚号39<br />GPIO36 – 引脚号16<br />GPIO37 – 引脚号78<br />GPIO38 – 引脚号68<br />GPIO39 – 引脚号69<br />GPIO40 – 引脚号74<br />GPIO41 – 引脚号75<br />GPIO42 – 引脚号84<br />GPIO43 – 引脚号85<br />GPIO44 – 引脚号25<br />EG912N平台引脚对应关系如下（引脚号为模块外部引脚编号）：<br />GPIO1 – 引脚号4<br />GPIO2 – 引脚号5<br />GPIO3 – 引脚号6<br />GPIO4 – 引脚号7<br />GPIO5 – 引脚号18<br />GPIO6 – 引脚号19<br />GPIO7 – 引脚号1<br />GPIO8 – 引脚号16<br />GPIO9 – 引脚号25<br />GPIO10 – 引脚号26<br />GPIO11 – 引脚号27<br />GPIO12 – 引脚号28<br />GPIO13 – 引脚号40<br/>GPIO14 – 引脚号41<br/>GPIO15 – 引脚号64<br/>GPIO16 – 引脚号20<br/>GPIO17 – 引脚号21<br/>GPIO18 – 引脚号30<br/>GPIO19 – 引脚号34<br/>GPIO20 – 引脚号35<br/>GPIO21 – 引脚号36<br/>GPIO22 – 引脚号37<br/>GPIO23 – 引脚号38<br/>GPIO24 – 引脚号39<br/>GPIO25 – 引脚号42<br />GPIO26 – 引脚号78<br />GPIO27 – 引脚号83<br />GPIO28 – 引脚号92<br />GPIO29 – 引脚号95<br />GPIO30 – 引脚号96<br />GPIO31 – 引脚号97<br />GPIO32 – 引脚号98<br />GPIO33 – 引脚号103<br />GPIO34 – 引脚号104<br />GPIO35 – 引脚号105<br />GPIO36 – 引脚号106<br />GPIO37 – 引脚号107<br />GPIO38 – 引脚号114<br />GPIO39 – 引脚号115<br />GPIO40 – 引脚号116 |
 | direction | int  | IN – 输入模式，OUT – 输出模式                                |
 | pullMode  | int  | PULL_DISABLE – 浮空模式<br />PULL_PU – 上拉模式<br />PULL_PD – 下拉模式 |
 | level     | int  | 0 - 设置引脚为低电平, 1- 设置引脚为高电平                    |
@@ -5975,6 +6407,7 @@ if __name__ == '__main__':
 | UART.UART1 | UART1 |
 | UART.UART2 | UART2 |
 | UART.UART3 | UART3 |
+| UART.UART4 | UART4 |
 
 
 
@@ -5986,26 +6419,29 @@ if __name__ == '__main__':
 
 | 参数     | 类型 | 说明                                                         |
 | :------- | :--- | ------------------------------------------------------------ |
-| UARTn    | int  | UARTn作用如下：<br />UART0 - DEBUG PORT<br />UART1 – BT PORT<br />UART2 – MAIN PORT<br />UART3 – USB CDC PORT (BG95M3 不支持)|
+| UARTn    | int  | UARTn作用如下：<br />UART0 - DEBUG PORT<br />UART1 – BT PORT<br />UART2 – MAIN PORT<br />UART3 – USB CDC PORT (BG95M3 不支持)<br />UART4 – STDOUT PORT (仅支持EC200U/EC600U/EG915U) |
 | buadrate | int  | 波特率，常用波特率都支持，如4800、9600、19200、38400、57600、115200、230400等 |
-| databits | int  | 数据位（5 ~ 8），展锐平台当前仅支持8位                         |
+| databits | int  | 数据位（5 ~ 8），展锐平台当前仅支持8位                       |
 | parity   | int  | 奇偶校验（0 – NONE，1 – EVEN，2 - ODD）                      |
-| stopbits | int  | 停止位（1 ~ 2）                                                |
+| stopbits | int  | 停止位（1 ~ 2）                                              |
 | flowctl  | int  | 硬件控制流（0 – FC_NONE， 1 – FC_HW）                        |
 
 - 引脚对应关系
 
 | 平台          |                                                              |
 | ------------- | ------------------------------------------------------------ |
-| EC600U        | uart1:<br />TX: 引脚号124<br />RX: 引脚号123<br />uart2:<br />TX:引脚号32<br />RX:引脚号31 |
-| EC200U        | uart1:<br />TX: 引脚号138<br />RX: 引脚号137<br />uart2:<br />TX:引脚号67<br />RX:引脚号68 |
+| EC600U        | uart1:<br />TX: 引脚号124<br />RX: 引脚号123<br />uart2:<br />TX:引脚号32<br />RX:引脚号31<br />uart4:<BR />TX:引脚号103<BR />RX:引脚号104 |
+| EC200U        | uart1:<br />TX: 引脚号138<br />RX: 引脚号137<br />uart2:<br />TX:引脚号67<br />RX:引脚号68<br />uart4:<BR />TX:引脚号82<BR />RX:引脚号81 |
 | EC200A        | uart1:<br />TX: 引脚号63<br />RX: 引脚号66<br />uart2:<br />TX:引脚号67<br />RX:引脚号68 |
 | EC600S/EC600N | uart0:<br />TX: 引脚号71<br />RX: 引脚号72<br />uart1:<br />TX: 引脚号3<br />RX: 引脚号2<br />uart2:<br />TX:引脚号32<br />RX:引脚号31 |
 | EC100Y        | uart0:<br />TX: 引脚号21<br />RX: 引脚号20<br />uart1:<br />TX: 引脚号27<br />RX: 引脚号28<br />uart2:<br />TX:引脚号50<br />RX:引脚号49 |
 | EC800N        | uart0:<br />TX: 引脚号39<br />RX: 引脚号38<br />uart1:<br />TX: 引脚号50<br />RX: 引脚号51<br />uart2:<br />TX:引脚号18<br />RX:引脚号17 |
 | BC25PA        | uart1:<br />TX: 引脚号29<br />RX: 引脚号28                   |
 | BG95M3        | uart0:<br />TX: 引脚号23<br />RX: 引脚号22<br />uart1:<br />TX:引脚号27<br />RX:引脚号28<br />uart2:<br />TX: 引脚号64<br />RX: 引脚号65 |
-| EC600M        | uart1:<br />TX: 引脚号3<br />RX: 引脚号2<br />uart2:<br />TX:引脚号32<br />RX:引脚号31 |
+| EC600M        | uart0:<br />TX: 引脚号71<br />RX: 引脚号72<br />uart1(不开启流控):<br />TX: 引脚号3<br />RX: 引脚号2<br />uart1(开启流控):<br />TX: 引脚号33<br />RX: 引脚号34<br />uart2:<br />TX:引脚号32<br />RX:引脚号31 |
+| EG915U        | uart1:<br />TX: 引脚号27<br />RX: 引脚号28<br />uart2:<br />TX:引脚号35<br />RX:引脚号34<br/>uart4:<br/>TX:引脚号19<br/>RX:引脚号18 |
+| EC800M        | uart0:<br />TX: 引脚号39<br />RX: 引脚号38<br />uart1(不开启流控):<br />TX: 引脚号50<br />RX: 引脚号51<br />uart1(开启流控):<br />TX: 引脚号22<br />RX: 引脚号23<br />注:EC800MCN_GA uart1不可用<br />uart2:<br />TX:引脚号18<br />RX:引脚号17 |
+| EG912N        | uart0:<br />TX: 引脚号23<br />RX: 引脚号22<br />uart1(不开启流控):<br />TX: 引脚号27<br />RX: 引脚号28<br/>uart1(开启流控):<br />TX: 引脚号36<br />RX: 引脚号37<br />uart2:<br />TX:引脚号34<br />RX:引脚号35 |
 
 * 示例
 
@@ -6398,14 +6834,14 @@ if __name__ == '__main__':
 | GPIOn    | int  | 需要控制的GPIO引脚号，参照Pin模块的定义(除BG95M3外) <br />BG95M3平台引脚对应关系如下（引脚号为模块外部引脚编号）<br />GPIO2 – 引脚号5<br />GPIO3 – 引脚号6<br />GPIO6 – 引脚号19<br />GPIO7 – 引脚号22<br />GPIO8 – 引脚号23<br />GPIO9 – 引脚号25<br />GPIO11 – 引脚号27<br />GPIO12 – 引脚号28<br />GPIO14 – 引脚号41<br />GPIO16 – 引脚号65<br/>GPIO17 – 引脚号66<br />GPIO18 – 引脚号85<br />GPIO19 – 引脚号86<br />GPIO20 – 引脚号87<br />GPIO21 – 引脚号88 |
 | mode     | int  | 设置触发方式<br /> IRQ_RISING – 上升沿触发<br /> IRQ_FALLING – 下降沿触发<br /> IRQ_RISING_FALLING – 上升和下降沿触发 |
 | pull     | int  | PULL_DISABLE – 浮空模式<br />PULL_PU – 上拉模式 <br />PULL_PD  – 下拉模式 |
-| callback | int  | 中断触发回调函数                                             |
+| callback | int  | 中断触发回调函数<br />返回参数为长度为2的元组<br />args[0]: gpio号<br />args[1]: 触发沿（0：上升沿 1：下降沿） |
 
 * 示例
 
 ```python
 >>> from machine import ExtInt
 >>> def fun(args):
-        print('### interrupt  {} ###'.format(args))
+        print('### interrupt  {} ###'.format(args)) # args[0]:gpio号 args[1]:上升沿或下降沿
 >>> extint = ExtInt(ExtInt.GPIO1, ExtInt.IRQ_FALLING, ExtInt.PULL_PU, fun)
 ```
 
@@ -6504,6 +6940,22 @@ if __name__ == '__main__':
 
 其他：失败
 
+###### 读取电平
+
+> **extint.read_level()**
+
+读取当前管脚电平。
+
+* 参数
+
+无
+
+* 返回值
+
+PIN脚电平，0-低电平，1-高电平
+
+
+
 ##### RTC
 
 类功能：提供获取设置rtc时间方法，对于BC25PA平台起到从深休眠或者软件关机状态唤醒模组的功能。
@@ -6561,7 +7013,8 @@ if __name__ == '__main__':
 
 支持平台EC600U/EC200U/EC600N/EC800N/BC25
 
-rtc.set_alarm(data_e)
+> **rtc.set_alarm(data_e)**
+
 设置RTC到期时间,当到了到期时间就会调用注册的回调函数。
 * 参数
 | 参数        | 类型 | 说明                                                         |
@@ -6655,8 +7108,8 @@ rtc.enable_alarm(1)
 
 | 常量              |                   | 适用平台                      |
 | ----------------- | ----------------- | ----------------------------- |
-| I2C.I2C0          | i2c 通路索引号: 0 | EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M |
-| I2C.I2C1          | i2c 通路索引号: 1 | EC600S/EC600N/EC600U/EC200U/BC25PA/BG95M3/EC600M |
+| I2C.I2C0          | i2c 通路索引号: 0 | EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M |
+| I2C.I2C1          | i2c 通路索引号: 1 | EC600S/EC600N/EC600U/EC200U/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N |
 | I2C.I2C2          | i2c 通路索引号: 2 | BG95M3/EC600M |
 | I2C.STANDARD_MODE | 标准模式 |                  |
 | I2C.FAST_MODE | 快速模式      |                               |
@@ -6689,6 +7142,9 @@ rtc.enable_alarm(1)
 | EC800N        | I2C0:<br />SCL:引脚号67<br />SDA:引脚号66                    |
 | BG95M3        | I2C0:<br />SCL: 引脚号18<br />SDA: 引脚号19<br />I2C1:<br />SCL:引脚号40<br />SDA:引脚号41<br />I2C2:<br />SCL:引脚号26<br />SDA:引脚号25 |
 | EC600M        | I2C0:<br />SCL: 引脚号9<br />SDA: 引脚号64<br />I2C1:<br />SCL:引脚号57<br />SDA:引脚号56<br />I2C2:<br />SCL:引脚号67<br />SDA:引脚号65 |
+| EG915U        | I2C0:<br />SCL: 引脚号103<br />SDA: 引脚号114<br />I2C1:<br />SCL:引脚号40<br />SDA:引脚号41 |
+| EC800M        | I2C0:<br />SCL: 引脚号67<br />SDA: 引脚号66<br />I2C2:<br />SCL:引脚号68<br />SDA:引脚号69 |
+| EG912N        | I2C1:<br />SCL: 引脚号40<br />SDA: 引脚号41                  |
 
 - 示例
 
@@ -6772,9 +7228,9 @@ i2c_log = log.getLogger("I2C")
 
 if __name__ == '__main__':
     I2C_SLAVE_ADDR = 0x1B  # i2c 设备地址
-    WHO_AM_I = bytearray({0x02, 0})   # i2c 寄存器地址，以buff的方式传入，取第一个值，计算一个值的长度
+    WHO_AM_I = bytearray([0x02, 0])   # i2c 寄存器地址，以buff的方式传入，取第一个值，计算一个值的长度
 
-    data = bytearray({0x12, 0})   # 输入对应指令
+    data = bytearray([0x12, 0])   # 输入对应指令
     i2c_obj = I2C(I2C.I2C0, I2C.STANDARD_MODE)  # 返回i2c对象
     i2c_obj.write(I2C_SLAVE_ADDR, WHO_AM_I, 1, data, 2) # 写入data
 
@@ -6994,7 +7450,7 @@ if __name__ == "__main__":
 | ---- | ---- | ------------------------------------------------------------ |
 | port | int  | 通道选择[0,1]                                                |
 | mode | int  | SPI 的工作模式(模式0最常用):<br />时钟极性CPOL: 即SPI空闲时，时钟信号SCLK的电平（0:空闲时低电平; 1:空闲时高电平）<br /> 0 : CPOL=0, CPHA=0<br /> 1 : CPOL=0, CPHA=1<br /> 2:  CPOL=1, CPHA=0<br /> 3:  CPOL=1, CPHA=1 |
-| clk  | int  | 时钟频率<br />EC600NCN/EC600SCN/EC800NCN/BG95M3/EC600M:<br /> 0 : 812.5kHz<br /> 1 : 1.625MHz<br /> 2 : 3.25MHz<br /> 3 : 6.5MHz<br /> 4 : 13MHz<br /> 5 :  26MHz<br /> 6：52MHz<br />EC600UCN/EC200UCN:<br />0 : 781.25KHz<br />1 : 1.5625MHz<br />2 : 3.125MHz<br />3 : 5MHz<br />4 : 6.25MHz<br />5 : 10MHz<br />6 : 12.5MHz<br />7 : 20MHz<br />8 : 25MHz<br />9 : 33.33MHz<br />BC25PA：<br />0 ： 5MHz<br />X : XMHz  (X in [1,39]) |
+| clk  | int  | 时钟频率<br />EC600NCN/EC600SCN/EC800NCN/BG95M3/EC600M/EC800M/EG912N:<br /> 0 : 812.5kHz<br /> 1 : 1.625MHz<br /> 2 : 3.25MHz<br /> 3 : 6.5MHz<br /> 4 : 13MHz<br /> 5 :  26MHz<br /> 6：52MHz<br />EC600UCN/EC200UCN/EG915U:<br />0 : 781.25KHz<br />1 : 1.5625MHz<br />2 : 3.125MHz<br />3 : 5MHz<br />4 : 6.25MHz<br />5 : 10MHz<br />6 : 12.5MHz<br />7 : 20MHz<br />8 : 25MHz<br />9 : 33.33MHz<br />BC25PA：<br />0 ： 5MHz<br />X : XMHz  (X in [1,39]) |
 
 - 引脚说明
 
@@ -7008,6 +7464,9 @@ if __name__ == "__main__":
 | BC25PA        | port0:<br />CS:引脚号6<br />CLK:引脚号5<br />MOSI:引脚号4<br />MISO:引脚号3 |
 | BG95M3        | port0:<br />CS:引脚号25<br />CLK:引脚号26<br />MOSI:引脚号27<br />MISO:引脚号28<br />port1:<br />CS:引脚号41<br />CLK:引脚号40<br />MOSI:引脚号64<br />MISO:引脚号65 |
 | EC600M        | port0:<br />CS:引脚号58<br />CLK:引脚号61<br />MOSI:引脚号59<br />MISO:引脚号60<br />port1:<br />CS:引脚号4<br />CLK:引脚号1<br />MOSI:引脚号3<br />MISO:引脚号2 |
+| EG915U        | port0:<br />CS:引脚号25<br />CLK:引脚号26<br />MOSI:引脚号64<br />MISO:引脚号88 |
+| EC800M        | port0:<br />CS:引脚号31<br />CLK:引脚号30<br />MOSI:引脚号32<br />MISO:引脚号33</u><br />port1:<br />CS:引脚号52<br />CLK:引脚号53<br />MOSI:引脚号50<br />MISO:引脚号51 |
+| EG912N        | port0:<br />CS:引脚号25<br />CLK:引脚号26<br />MOSI:引脚号27<br />MISO:引脚号28<br/>port1:<br />CS:引脚号5<br />CLK:引脚号4<br />MOSI:引脚号6<br />MISO:引脚号7 |
 * 注意
   BC25PA平台不支持1、2模式。
 - 示例
@@ -7570,14 +8029,13 @@ if __name__ == '__main__':
 
 ##### KeyPad
 
-模块功能:提供矩阵键盘接口，支持平台EC600SCN_LB/EC800N_CN_LA/EC600NCNLC/EC200U_CN_LB/EC600U_CN_LB
+模块功能:提供矩阵键盘接口，支持平台EC600SCN_LB/EC800N_CN_LA/EC600NCNLC/EC200U_CN_LB/EC600U_CN_LB/EC600M_CN_LA/EC800M_CN_LA/EC800M_CN_GA/EG912N_ENAA
 
 EC200U最大支持4X3,EC600U最大支持6X6。
 
 ###### 创建keypad对象
 
 > **keypad=machine.KeyPad(row,col)**
->
 * 参数
 | 参数   | 参数类型 | 参数说明                            |
 | ------ | -------- | ----------------------------------- |
@@ -7592,6 +8050,19 @@ EC200U最大支持4X3,EC600U最大支持6X6。
 | EC600S        | 5      | 5      |
 | EC200U        | 4      | 3      |
 | EC600U        | 6      | 6      |
+| EC600M        | 5      | 5      |
+| EC800M        | 5      | 5      |
+| EG912N        | 3      | 3      |
+
+- 引脚说明
+
+注意：当不使用全部引脚时，接线按行列号从小到大顺序接线，比如EC600M使用2x2矩阵键盘时，硬件使用49、51和48、50引脚。
+
+| 平台   | 引脚                                                         |
+| ------ | ------------------------------------------------------------ |
+| EC600M | 行号（输出）对应引脚如下：<br/>行号0 – 引脚号49<br/>行号1 – 引脚号51<br/>行号2 – 引脚号53<br/>行号3 – 引脚号55<br/>行号4 – 引脚号56<br/>列号（输入）对应引脚如下：<br/>列号0 – 引脚号48<br/>列号1 – 引脚号50<br/>列号2 – 引脚号52<br/>列号3 – 引脚号54<br />列号4 – 引脚号57 |
+| EC800M | 行号（输出）对应引脚如下：<br/>行号0 – 引脚号86<br/>行号1 – 引脚号76<br/>行号2 – 引脚号85<br/>行号3 – 引脚号82<br/>行号4 – 引脚号74<br/>列号（输入）对应引脚如下：<br/>列号0 – 引脚号87<br/>列号1 – 引脚号77<br/>列号2 – 引脚号84<br/>列号3 – 引脚号83<br/>列号4 – 引脚号75 |
+| EG912N | 行号（输出）对应引脚如下：<br/>行号1 – 引脚号20<br/>行号2 – 引脚号16<br/>行号3 – 引脚号116<br/>列号（输入）对应引脚如下：<br/>列号2 – 引脚号105<br/>列号3 – 引脚号21<br/>列号4 – 引脚号1 |
 
 
 * 示例：
@@ -8071,59 +8542,6 @@ ure.search 扫描整个字符串并返回第一个成功的匹配。
 返回匹配的整个表达式的字符串
 
 
-
-##### 匹配多个字符串
-
-> ​	**match.groups()**
-
-匹配的整个表达式的字符串
-
-- 参数
-
-无
-
-* 返回值
-
-返回一个包含该匹配组的所有子字符串的元组。
-
-
-
-##### 获取起始索引
-
-> ​	**match.start(index)**
-
-返回匹配的子字符串组的起始原始字符串中的索引。
-
-- 参数
-
-| 参数  | 类型 | 说明                                 |
-| :---- | :--- | ------------------------------------ |
-| index | int  | index 默认为整个组，否则将选择一个组 |
-
-* 返回值
-
-返回匹配的子字符串组的起始原始字符串中的索引。
-
-
-
-##### 获取结束索引
-
-> ​	**match.end(index)**
-
-返回匹配的子字符串组的结束原始字符串中的索引。
-
-- 参数
-
-| 参数  | 类型 | 说明                                 |
-| :---- | :--- | ------------------------------------ |
-| index | int  | index 默认为整个组，否则将选择一个组 |
-
-* 返回值
-
-返回匹配的子字符串组的结束原始字符串中的索引。
-
-
-
 ##### 使用示例
 
 ```python
@@ -8144,7 +8562,7 @@ print(r.group(0))
 
 ####  wifiScan - WiFi扫描
 
-注意：BC25PA平台不支持此方法。
+注意：支持wifiscan的平台: 1603/1606(不包含:600MCN_LC/800MCN_GC/800MCN_LC)/8910/8850.
 
 ##### 判断是否支持 wifiScan
 
@@ -8246,10 +8664,10 @@ True
 
   | 返回值        | 类型 | 说明                                                         |
   | ------------- | ---- | ------------------------------------------------------------ |
-  | timeout       | 整型 | 该超时时间参数是上层应用的超时，当触发超时会主动上报已扫描到的热点信息，若在超时前扫描到设置的热点个数或达到底层扫频超时时间会自动上报热点信息。该参数设置范围为4-255秒。 |
-  | round         | 整型 | 该参数是Wi-Fi扫描轮，达到扫描轮数后，会结束扫描并获取扫描结果。该参数设置范围为1-3轮次。 |
-  | max_bssid_num | 整型 | 该参数是Wi-Fi扫描热点最大个，若底层扫描热点个数达到设置的最大个数，会结束扫描并获取扫描结果。该参数设置范围为4-30个。 |
-  | scan_timeout  | 整型 | 该参数是底层Wi-Fi扫描热点超时时间，若底层扫描热点时间达到设置的超时时间，会结束扫描并获取扫描结果。该参数设置范围为1-255秒。 |
+  | timeout       | 整型 | 该超时时间参数是上层应用的超时，当触发超时会主动上报已扫描到的热点信息，若在超时前扫描到设置的热点个数或达到底层扫频超时时间会自动上报热点信息。 |
+  | round         | 整型 | 该参数是Wi-Fi扫描轮，达到扫描轮数后，会结束扫描并获取扫描结果。|
+  | max_bssid_num | 整型 | 该参数是Wi-Fi扫描热点最大个，若底层扫描热点个数达到设置的最大个数，会结束扫描并获取扫描结果。|
+  | scan_timeout  | 整型 | 该参数是底层Wi-Fi扫描热点超时时间，若底层扫描热点时间达到设置的超时时间，会结束扫描并获取扫描结果。|
   | priority      | 整型 | 该参数是Wi-Fi扫描业务优先级设置，0为ps优先，1为Wi-Fi优先。ps优先时，当有数据业务发起时会中断Wi-Fi扫描。Wi-Fi优先时，当有数据业务发起时，不会建立RRC连接，保障Wi-Fi扫描正常执行，扫描结束后才会建立RRC连接。 |
 
 * 示例：
@@ -8273,11 +8691,11 @@ True
 
   | 参数          | 类型 | 说明                                                         |
   | ------------- | ---- | ------------------------------------------------------------ |
-  | timeout       | 整型 | 该超时时间参数是上层应用的超时，当触发超时会主动上报已扫描到的热点信息，若在超时前扫描到设置的热点个数或达到底层扫频超时时间会自动上报热点信息。<br>参数范围：<br/>600S ：4-255秒<br/>200U/600U ：120-5000毫秒 |
-  | round         | 整型 | 该参数是wifi扫描轮，达到扫描轮数后，会结束扫描并获取扫描结果。<br/>参数范围：<br/>600S ：1-3轮次<br/>200U/600U ：1-10轮次 |
-  | max_bssid_num | 整型 | 该参数是wifi扫描热点最大个，若底层扫描热点个数达到设置的最大个数，会结束扫描并获取扫描结果。<br/>参数范围：<br/>600S ：4-30个<br/>200U/600U ：1-300个 |
+  | timeout       | 整型 | 该超时时间参数是上层应用的超时，当触发超时会主动上报已扫描到的热点信息，若在超时前扫描到设置的热点个数或达到底层扫频超时时间会自动上报热点信息。<br>参数范围：<br/>1603/1606平台 ：4-255秒<br/>8850/8910平台 ：120-5000毫秒 |
+  | round         | 整型 | 该参数是wifi扫描轮，达到扫描轮数后，会结束扫描并获取扫描结果。<br/>参数范围：<br/>1603/1606平台 ：1-3轮次<br/>8850/8910平台 ：1-10轮次 |
+  | max_bssid_num | 整型 | 该参数是wifi扫描热点最大个，若底层扫描热点个数达到设置的最大个数，会结束扫描并获取扫描结果。<br/>参数范围：<br/>1603平台 ：4-30个<br/>1606平台 ：4-10个<br/>8850/8910平台 ：1-30个 |
   | scan_timeout  | 整型 | 该参数是底层wifi扫描热点超时时间，若底层扫描热点时间达到设置的超时时间，会结束扫描并获取扫描结果。该参数设置范围为1-255秒。 |
-  | priority      | 整型 | 该参数是wifi扫描业务优先级设置，0为ps优先，1为wifi优先。ps优先时，当有数据业务发起时会中断wifi扫描。Wifi优先时，当有数据业务发起时，不会建立RRC连接，保障wifi扫描正常执行，扫描结束后才会建立RRC连接。200U/600U 平台不支持该参数，设置时写0即可。 |
+  | priority      | 整型 | 该参数是wifi扫描业务优先级设置，0为ps优先，1为wifi优先。ps优先时，当有数据业务发起时会中断wifi扫描。Wifi优先时，当有数据业务发起时，不会建立RRC连接，保障wifi扫描正常执行，扫描结束后才会建立RRC连接。8850/8910平台不支持该参数，设置时写0即可。 |
 
 * 返回值：
 
@@ -8767,7 +9185,7 @@ def ble_gatt_set_param():
 
   | 参数 | 类型 | 说明                                                         |
   | ---- | ---- | ------------------------------------------------------------ |
-  | data | 数组 | 广播数据，广播数据最长不超过31个字节。注意该参数的类型，程序中组织好广播数据后，需要通过bytearray()来转换，然后才能传入接口，具体处理参考下面的示例。<br>关于广播数据的格式说明：<br>广播数据的内容，采用 length+type+data 的格式。一条广播数据中可以包含多个这种格式数据的组合，比如示例中就包含了两个，第一个是 "0x02, 0x01, 0x05"，0x02表示后面有两个数据，分别是0x01和0x05，0x01即type，0x05表示具体数据；第二个是ble名称长度加1（因为还要包含一个表示type的数据，所以长度需要加1）得到的长度、type 0x09以及name对应的具体编码值表示的data组成的。<br>关于type具体值代表的含义，请参考如下连接：<br/>[Generic Access Pfofile](https://btprodspecificationrefs.blob.core.windows.net/assigned-numbers/Assigned Number Types/Generic Access Profile.pdf) |
+  | data | 数组 | 广播数据，广播数据最长不超过31个字节。注意该参数的类型，程序中组织好广播数据后，需要通过bytearray()来转换，然后才能传入接口，具体处理参考下面的示例。<br>关于广播数据的格式说明：<br>广播数据的内容，采用 length+type+data 的格式。一条广播数据中可以包含多个这种格式数据的组合，比如示例中就包含了两个，第一个是 "0x02, 0x01, 0x05"，0x02表示后面有两个数据，分别是0x01和0x05，0x01即type，0x05表示具体数据；第二个是ble名称长度加1（因为还要包含一个表示type的数据，所以长度需要加1）得到的长度、type 0x09以及name对应的具体编码值表示的data组成的。<br>关于type具体值代表的含义，请参考如下连接：<br/>[Generic Access Pfofile](https://btprodspecificationrefs.blob.core.windows.net/assigned-numbers/Assigned%20Number%20Types/Generic%20Access%20Profile.pdf) |
 
 * 返回值
 
@@ -11017,11 +11435,1930 @@ if __name__ == '__main__':
 
 
 
+#### bt - 经典蓝牙
+
+模块功能：提供经典蓝牙的相关功能，支持HFP、A2DP、AVRCP、SPP。
+
+##### 蓝牙初始化
+
+> **bt.init(user_cb)**
+
+* 功能
+
+蓝牙初始化并注册回调函数。
+
+* 参数
+
+| 参数    | 类型     | 说明     |
+| ------- | -------- | -------- |
+| user_cb | function | 回调函数 |
+
+* 返回值
+
+执行成功返回整型0，失败返回整型-1。
+
+说明：
+
+（1）回调函数的形式
+
+```python
+def bt_callback(args):
+	event_id = args[0]  # 第一个参数固定是 event_id
+	status = args[1] # 第二个参数固定是状态，表示某个操作的执行结果是成功还是失败
+	......
+```
+
+（2）回调函数参数说明
+
+​		args[0] 固定表示event_id，args[1] 固定表示状态，0表示成功，非0表示失败。回调函数的参数个数并不是固定2个，而是根据第一个参数args[0]来决定的，下表中列出了不同事件ID对应的参数个数及说明。
+
+| event_id | 参数个数 | 参数说明                                                     |
+| :------: | :------: | ------------------------------------------------------------ |
+|    0     |    2     | args[0] ：event_id，表示 BT/BLE start 事件<br>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败 |
+|    1     |    2     | args[0] ：event_id，表示 BT/BLE stop<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败 |
+|    6     |    6     | args[0] ：event_id，表示 BT inquiry 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：rssi，搜索到的设备的信号强度；<br/>args[3] ：device_class <br/>args[4] ：device_name，设备名称，字符串类型<br/>args[5] ：addr，搜到的蓝牙设备的mac地址 |
+|    7     |    3     | args[0] ：event_id，表示 BT inquiry end 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：end_status，0 - 正常结束搜索，8 - 强制结束搜索 |
+|    14    |    4     | args[0] ：event_id，表示 BT spp recv 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：data_len，收到的数据长度<br/>args[3] ：data，收到的数据，bytearray类型数据 |
+|    40    |    4     | args[0] ：event_id，表示 BT HFP connect 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_connect_status，表示hfp的连接状态；<br/>                 0 - 已经断开连接<br/>                 1 - 连接中<br/>                 2 - 已经连接<br/>                 3 - 断开连接中<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    41    |    4     | args[0] ：event_id，表示 BT HFP disconnect 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_connect_status，表示hfp的连接状态；<br/>                 0 - 已经断开连接<br/>                 1 - 连接中<br/>                 2 - 已经连接<br/>                 3 - 断开连接中<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    42    |    4     | args[0] ：event_id，表示 BT HFP call status 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_call_status，表示hfp的通话状态；<br/>                 0 - 当前没有正在进行的通话<br/>                 1 - 当前至少有一个正在进行的通话<br/> args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    43    |    4     | args[0] ：event_id，表示 BT HFP call setup status 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_call_setup_status，表示hfp的call setup状态；<br/>                 0 - 表示没有电话需要接通<br/>                 1 - 表示有一个拨进来的电话还未接通<br/>                 2 - 表示有一个拨出去的电话还没有接通<br/>                 3 - 表示拨出电话的蓝牙连接的另一方正在响铃<br/> args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    44    |    4     | args[0] ：event_id，表示 BT HFP network status 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_network_status，表示AG的网络状态；<br/>                 0 - 表示网络不可用<br/>                 1 - 表示网络正常<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    45    |    4     | args[0] ：event_id，表示 BT HFP network signal 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_network_signal，表示AG的信号，范围 0~5<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    46    |    4     | args[0] ：event_id，表示 BT HFP battery level 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_battery_level，表示AG端的电池电量，范围 0~5<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    47    |    4     | args[0] ：event_id，表示 BT HFP call held status 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_call_held_status，表示hfp的call held状态；<br/>                 0 - 表示没有保持呼叫<br/>                 1 - 表示呼叫被暂停或活动/保持呼叫交换<br/>                 2 - 表示呼叫暂停，没有活动呼叫<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    48    |    4     | args[0] ：event_id，表示 BT HFP audio status 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_audio_status，表示audio连接状态；<br/>                 0 - 表示audio已经断开连接<br/>                 1 - 表示audio正在连接中<br/>                 2 - 表示audio已经连接成功<br/>                 3 - 表示audio正在断开连接<br>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    49    |    4     | args[0] ：event_id，表示 BT HFP volume type 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_volume_type<br/>                 0 - 表示volume type为speaker<br/>                 1 - 表示volume type为microphone<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    50    |    4     | args[0] ：event_id，表示 BT HFP service type 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_service_type，表示当前AG的网络服务模式；<br/>                 0 - 表示AG当前为正常网络模式<br/>                 1 - 表示AG当前处于漫游模式<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    51    |    4     | args[0] ：event_id，表示 BT HFP ring 事件，即来电时响铃事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：当前无实际意义，保留<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    52    |    4     | args[0] ：event_id，表示 BT HFP codec type 事件，即编解码模式<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：hfp_codec_type，表示当前使用哪个编解码模式；<br/>                 1 - 表示 CVDS，采用8kHz采样率<br/>                 2 - 表示mSBC，采用16kHz采样率<br/>args[3] ：addr，BT 主设备的地址，bytearray类型数据 |
+|    61    |    4     | args[0] ：event_id，表示 BT SPP connect 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：spp_connect_status，表示spp的连接状态；<br/>                 0 - 已经断开连接<br/>                 1 - 连接中<br/>                 2 - 已经连接<br/>                 3 - 断开连接中<br/> args[3] ：addr，对端设备的mac地址，bytearray类型数据 |
+|    62    |    4     | args[0] ：event_id，表示 BT SPP disconnect 事件<br/>args[1] ：status，表示操作的状态，0 - 成功，非0 - 失败<br/>args[2] ：spp_connect_status，表示spp的连接状态；<br/>                 0 - 已经断开连接<br/>                 1 - 连接中<br/>                 2 - 已经连接<br/>                 3 - 断开连接中<br/> args[3] ：addr，对端设备的mac地址，bytearray类型数据 |
+
+* 示例
+
+```python 
+
+```
+
+
+
+##### 蓝牙资源释放
+
+> **bt.release()**
+
+* 功能
+
+  蓝牙资源释放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### 开启蓝牙功能
+
+> **bt.start()**
+
+* 功能
+
+  开启蓝牙功能。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+
+
+
+##### 关闭蓝牙功能
+
+> **bt.stop()**
+
+* 功能
+
+  关闭蓝牙功能。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+
+
+
+##### 获取蓝牙状态
+
+> **bt.getStatus()**
+
+* 功能
+
+  获取蓝牙的状态。
+
+* 参数
+
+  无
+
+* 返回值
+
+  | 返回值 | 类型 | 说明             |
+  | ------ | ---- | ---------------- |
+  | -1     | int  | 获取状态失败     |
+  | 0      | int  | 蓝牙处于停止状态 |
+  | 1      | int  | 蓝牙正常运行中   |
+
+  
+
+##### 获取蓝牙地址
+
+> **bt.getLocalAddr()**
+
+* 功能
+
+  获取蓝牙地址。该接口需要在蓝牙已经初始化完成并启动成功后才能调用，比如在回调中收到 event_id 为0的事件之后，即 start 成功后，去调用。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回bytearray类型的蓝牙地址，6字节，失败返回整型-1。
+
+* 示例
+
+```python
+>>> addr = bt.getLocalAddr()
+>>> print(addr)
+b'\xc7\xa13\xf8\xbf\x1a'
+>>> mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+>>> print('mac = [{}]'.format(mac))
+mac = [1a:bf:f8:33:a1:c7]
+```
+
+
+
+##### 设置蓝牙名称
+
+> **bt.setLocalName(code, name)**
+
+* 功能
+
+  设置蓝牙名称。
+
+* 参数
+
+  | 参数 | 类型   | 说明                              |
+  | ---- | ------ | --------------------------------- |
+  | code | int    | 编码模式<br/>0 - UTF8<br/>1 - GBK |
+  | name | string | 蓝牙名称，最大长度22字节          |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+>>> bt.setLocalName(0, 'QuecPython-BT')
+0
+```
+
+
+
+##### 获取蓝牙名称
+
+> **bt.getLocalName()**
+
+* 功能
+
+  获取蓝牙名称。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回一个元组，包含名称编码模式和蓝牙名称，失败返回整型-1。
+
+  成功返回格式：`(code, name)`
+
+* 示例
+
+```python
+>>> bt.getLocalName()
+(0, 'QuecPython-BT')
+```
+
+
+
+##### 设置蓝牙可见模式
+
+> **bt.setVisibleMode(mode)**
+
+* 功能
+
+  设置蓝牙可见模式，即做从机时，被扫描时，是否可见以及可连接。
+
+* 参数
+
+  | 参数 | 类型 | 说明                                                         |
+  | ---- | ---- | ------------------------------------------------------------ |
+  | mode | int  | 0 - 不可被发现，不可被连接<br>1 - 可以被发现，但不可被连接<br>2 - 不可被发现，但可被连接<br>3 - 可以被发现，可被连接 |
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+>>> bt.setVisibleMode(3)
+0
+```
+
+
+
+##### 获取蓝牙可见模式
+
+> **bt.getVisibleMode()**
+
+* 功能
+
+  获取蓝牙可见模式。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回蓝牙当前的可见模式值，失败返回整型-1。
+
+* 示例
+
+```python
+>>> bt.getVisibleMode()
+3
+```
+
+
+
+##### 开始搜索设备
+
+> **bt.startInquiry(mode)**
+
+* 功能
+
+  开始搜索周边的蓝牙设备。
+
+* 参数
+
+  | 参数 | 类型 | 说明                                           |
+  | ---- | ---- | ---------------------------------------------- |
+  | mode | int  | 表示查询哪一类设备；当前直接写15，表示搜索所有 |
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+bt.startInquiry(15)
+```
+
+
+
+##### 取消搜索设备
+
+> **bt.cancelInquiry()**
+
+* 功能
+
+  取消搜索操作。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### 设置音频输出通道
+
+> **bt.setChannel(channel)**
+
+* 功能
+
+  通过蓝牙接听电话或者播放音频时，通过该接口来设置音频输出通道。
+
+* 参数
+
+  | 参数    | 类型 | 说明                             |
+  | ------- | ---- | -------------------------------- |
+  | channel | int  | 0 - 听筒<br>1 - 耳机<br>2 - 喇叭 |
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 功能初始化
+
+> **bt.hfpInit()**
+
+* 功能
+
+HFP 功能初始化 。
+
+* 参数
+
+  无
+
+* 返回值
+
+执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python 
+
+```
+
+
+
+##### HFP 资源释放
+
+> **bt.hfpRelease()**
+
+* 功能
+
+  HFP 资源释放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 建立连接
+
+> **bt.hfpConnect(addr)**
+
+* 功能
+
+  连接AG，建立HFP连接。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 断开连接
+
+> **bt.hfpDisonnect(addr)**
+
+* 功能
+
+  断开HFP连接。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 设置通话音量
+
+> **bt.hfpSetVolume(addr, vol)**
+
+* 功能
+
+  设置蓝牙通话时的音量。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+  | vol  | int  | 通话音量，范围 1-15   |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 挂断电话
+
+> **bt.hfpRejectAfterAnswer(addr)**
+
+* 功能
+
+  挂断接通的电话。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 拒接电话
+
+> **bt.hfpRejectCall(addr)**
+
+* 功能
+
+  拒接电话。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 接听电话
+
+> **bt.hfpAnswerCall(addr)**
+
+* 功能
+
+  接听电话。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 开启语音助手
+
+> **bt.hfpEnableVR(addr)**
+
+* 功能
+
+  开启语音助手。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 关闭语音助手
+
+> **bt.hfpDisableVR(addr)**
+
+* 功能
+
+  关闭语音助手。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 三方通话控制
+
+> **bt.hfpDisableVR(addr, cmd)**
+
+* 功能
+
+  三方通话控制。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | addr | 数组 | AG端蓝牙地址，6个字节 |
+  | cmd  | int  | 控制命令              |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### HFP 示例程序
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+示例说明：本例程提供一个通过HFP自动接听电话的功能
+运行平台：EC600UCN_LB 铀开发板
+运行本例程后，通过手机A搜索到设备名并点击连接；然后通过手机B拨打电话给手机A，
+当手机A开始响铃震动时，设备会自动接听电话
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+from machine import Pin
+
+# 如果对应播放通道外置了PA，且需要引脚控制PA开启，则需要下面步骤
+# 具体使用哪个GPIO取决于实际使用的引脚
+gpio11 = Pin(Pin.GPIO11, Pin.OUT, Pin.PULL_DISABLE, 0)
+gpio11.write(1)
+
+BT_NAME = 'QuecPython-hfp'
+
+BT_EVENT = {
+    'BT_START_STATUS_IND': 0,           # bt/ble start
+    'BT_STOP_STATUS_IND': 1,            # bt/ble stop
+    'BT_HFP_CONNECT_IND': 40,           # bt hfp connected
+    'BT_HFP_DISCONNECT_IND': 41,        # bt hfp disconnected
+    'BT_HFP_CALL_IND': 42,              # bt hfp call state
+    'BT_HFP_CALL_SETUP_IND': 43,        # bt hfp call setup state
+    'BT_HFP_NETWORK_IND': 44,           # bt hfp network state
+    'BT_HFP_NETWORK_SIGNAL_IND': 45,    # bt hfp network signal
+    'BT_HFP_BATTERY_IND': 46,           # bt hfp battery level
+    'BT_HFP_CALLHELD_IND': 47,          # bt hfp callheld state
+    'BT_HFP_AUDIO_IND': 48,             # bt hfp audio state
+    'BT_HFP_VOLUME_IND': 49,            # bt hfp volume type
+    'BT_HFP_NETWORK_TYPE': 50,          # bt hfp network type
+    'BT_HFP_RING_IND': 51,              # bt hfp ring indication
+    'BT_HFP_CODEC_IND': 52,             # bt hfp codec type
+}
+
+HFP_CONN_STATUS = 0
+HFP_CONN_STATUS_DICT = {
+    'HFP_DISCONNECTED': 0,
+    'HFP_CONNECTING': 1,
+    'HFP_CONNECTED': 2,
+    'HFP_DISCONNECTING': 3,
+}
+HFP_CALL_STATUS = 0
+HFP_CALL_STATUS_DICT = {
+    'HFP_NO_CALL_IN_PROGRESS': 0,
+    'HFP_CALL_IN_PROGRESS': 1,
+}
+
+BT_IS_RUN = 0
+
+msg_queue = Queue(30)
+
+
+def get_key_by_value(val, d):
+    for key, value in d.items():
+        if val == value:
+            return key
+    return None
+
+def bt_callback(args):
+    global msg_queue
+    msg_queue.put(args)
+
+def bt_event_proc_task():
+    global msg_queue
+    global BT_IS_RUN
+    global BT_EVENT
+    global HFP_CONN_STATUS
+    global HFP_CONN_STATUS_DICT
+    global HFP_CALL_STATUS
+    global HFP_CALL_STATUS_DICT
+
+    while True:
+        print('wait msg...')
+        msg = msg_queue.get()  # 没有消息时会阻塞在这
+        event_id = msg[0]
+        status = msg[1]
+
+        if event_id == BT_EVENT['BT_START_STATUS_IND']:
+            print('event: BT_START_STATUS_IND')
+            if status == 0:
+                print('BT start successfully.')
+                BT_IS_RUN = 1
+                bt_status = bt.getStatus()
+                if bt_status == 1:
+                    print('BT status is 1, normal status.')
+                else:
+                    print('BT status is {}, abnormal status.'.format(bt_status))
+                    bt.stop()
+                    break
+
+                retval = bt.getLocalName()
+                if retval != -1:
+                    print('The current BT name is : {}'.format(retval[1]))
+                else:
+                    print('Failed to get BT name.')
+                    bt.stop()
+                    break
+
+                print('Set BT name to {}'.format(BT_NAME))
+                retval = bt.setLocalName(0, BT_NAME)
+                if retval != -1:
+                    print('BT name set successfully.')
+                else:
+                    print('BT name set failed.')
+                    bt.stop()
+                    break
+
+                retval = bt.getLocalName()
+                if retval != -1:
+                    print('The new BT name is : {}'.format(retval[1]))
+                else:
+                    print('Failed to get new BT name.')
+                    bt.stop()
+                    break
+
+                # 设置蓝牙可见模式为：可以被发现并且可以被连接
+                retval = bt.setVisibleMode(3)
+                if retval == 0:
+                    mode = bt.getVisibleMode()
+                    if mode == 3:
+                        print('BT visible mode set successfully.')
+                    else:
+                        print('BT visible mode set failed.')
+                        bt.stop()
+                        break
+                else:
+                    print('BT visible mode set failed.')
+                    bt.stop()
+                    break
+            else:
+                print('BT start failed.')
+                bt.stop()
+                break
+        elif event_id == BT_EVENT['BT_STOP_STATUS_IND']:
+            print('event: BT_STOP_STATUS_IND')
+            if status == 0:
+                BT_IS_RUN = 0
+                print('BT stop successfully.')
+            else:
+                print('BT stop failed.')
+            break
+        elif event_id == BT_EVENT['BT_HFP_CONNECT_IND']:
+            HFP_CONN_STATUS = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CONNECT_IND, {}, hfp_conn_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CONN_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP connect failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_DISCONNECT_IND']:
+            HFP_CONN_STATUS = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_DISCONNECT_IND, {}, hfp_conn_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CONN_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP disconnect failed.')
+            bt.stop()
+        elif event_id == BT_EVENT['BT_HFP_CALL_IND']:
+            call_sta = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALL_IND, {}, hfp_call_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CALL_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP call failed.')
+                bt.stop()
+                continue
+
+            if call_sta == HFP_CALL_STATUS_DICT['HFP_NO_CALL_IN_PROGRESS']:
+                if HFP_CALL_STATUS == HFP_CALL_STATUS_DICT['HFP_CALL_IN_PROGRESS']:
+                    HFP_CALL_STATUS = call_sta
+                    if HFP_CONN_STATUS == HFP_CONN_STATUS_DICT['HFP_CONNECTED']:
+                        print('call ended, ready to disconnect hfp.')
+                        retval = bt.hfpDisconnect(addr)
+                        if retval == 0:
+                            HFP_CONN_STATUS = HFP_CONN_STATUS_DICT['HFP_DISCONNECTING']
+                        else:
+                            print('Failed to disconnect hfp connection.')
+                            bt.stop()
+                            continue
+            else:
+                if HFP_CALL_STATUS == HFP_CALL_STATUS_DICT['HFP_NO_CALL_IN_PROGRESS']:
+                    HFP_CALL_STATUS = call_sta
+                    print('set audio output channel to 2.')
+                    bt.setChannel(2)
+                    print('set volume to 7.')
+                    retval = bt.hfpSetVolume(addr, 7)
+                    if retval != 0:
+                        print('set volume failed.')
+        elif event_id == BT_EVENT['BT_HFP_CALL_SETUP_IND']:
+            call_setup_status = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALL_SETUP_IND, {}, hfp_call_setup_status:{}, mac:{}'.format(status, call_setup_status, mac))
+            if status != 0:
+                print('BT HFP call setup failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_CALLHELD_IND']:
+            callheld_status = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALLHELD_IND, {}, callheld_status:{}, mac:{}'.format(status, callheld_status, mac))
+            if status != 0:
+                print('BT HFP callheld failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_IND']:
+            network_status = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_IND, {}, network_status:{}, mac:{}'.format(status, network_status, mac))
+            if status != 0:
+                print('BT HFP network status failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_SIGNAL_IND']:
+            network_signal = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_SIGNAL_IND, {}, signal:{}, mac:{}'.format(status, network_signal, mac))
+            if status != 0:
+                print('BT HFP network signal failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_BATTERY_IND']:
+            battery_level = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_BATTERY_IND, {}, battery_level:{}, mac:{}'.format(status, battery_level, mac))
+            if status != 0:
+                print('BT HFP battery level failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_AUDIO_IND']:
+            audio_status = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_AUDIO_IND, {}, audio_status:{}, mac:{}'.format(status, audio_status, mac))
+            if status != 0:
+                print('BT HFP audio failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_VOLUME_IND']:
+            volume_type = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_VOLUME_IND, {}, volume_type:{}, mac:{}'.format(status, volume_type, mac))
+            if status != 0:
+                print('BT HFP volume failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_TYPE']:
+            service_type = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_TYPE, {}, service_type:{}, mac:{}'.format(status, service_type, mac))
+            if status != 0:
+                print('BT HFP network service type failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_RING_IND']:
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_RING_IND, {}, mac:{}'.format(status, mac))
+            if status != 0:
+                print('BT HFP ring failed.')
+                bt.stop()
+                continue
+            retval = bt.hfpAnswerCall(addr)
+            if retval == 0:
+                print('The call was answered successfully.')
+            else:
+                print('Failed to answer the call.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_CODEC_IND']:
+            codec_type = msg[2]
+            addr = msg[3]  # BT 主机端mac地址
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CODEC_IND, {}, codec_type:{}, mac:{}'.format(status, codec_type, mac))
+            if status != 0:
+                print('BT HFP codec failed.')
+                bt.stop()
+                continue
+    print('Ready to release hfp.')
+    bt.hfpRelease()
+    bt.release()
+
+
+def main():
+    global BT_IS_RUN
+
+    _thread.start_new_thread(bt_event_proc_task, ())
+
+    retval = bt.init(bt_callback)
+    if retval == 0:
+        print('BT init successful.')
+    else:
+        print('BT init failed.')
+        return -1
+    retval = bt.hfpInit()
+    if retval == 0:
+        print('HFP init successful.')
+    else:
+        print('HFP init failed.')
+        return -1
+    retval = bt.start()
+    if retval == 0:
+        print('BT start successful.')
+    else:
+        print('BT start failed.')
+        retval = bt.hfpRelease()
+        if retval == 0:
+            print('HFP release successful.')
+        else:
+            print('HFP release failed.')
+        retval = bt.release()
+        if retval == 0:
+            print('BT release successful.')
+        else:
+            print('BT release failed.')
+        return -1
+
+    count = 0
+    while True:
+        utime.sleep(1)
+        count += 1
+        cur_time = utime.localtime()
+        timestamp = "{:02d}:{:02d}:{:02d}".format(cur_time[3], cur_time[4], cur_time[5])
+
+        if count % 5 == 0:
+            if BT_IS_RUN == 1:
+                print('[{}] BT HFP is running, count = {}......'.format(timestamp, count))
+                print('')
+            else:
+                print('BT HFP has stopped running, ready to exit.')
+                break
+
+
+if __name__ == '__main__':
+    main()
+
+```
+
+
+
+##### A2DP/AVRCP 功能初始化
+
+> **bt.a2dpavrcpInit()**
+
+* 功能
+
+  A2DP和AVRCP功能初始化。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### A2DP/AVRCP 资源释放
+
+> **bt.a2dpavrcpRelease()**
+
+* 功能
+
+  A2DP和AVRCP 资源释放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### A2DP 断开连接
+
+> **bt.a2dpDisconnect(addr)**
+
+* 功能
+
+  断开A2DP连接。
+
+* 参数
+
+  | 参数 | 类型 | 说明                      |
+  | ---- | ---- | ------------------------- |
+  | addr | 数组 | A2DP主机蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### A2DP 获取主机蓝牙地址
+
+> **bt.a2dpGetAddr()**
+
+* 功能
+
+  获取A2DP主机蓝牙地址。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回bytearray类型的A2DP主机蓝牙地址，6字节，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### A2DP 获取A2DP连接状态
+
+> **bt.a2dpGetConnStatus()**
+
+* 功能
+
+  获取A2DP连接状态。
+
+* 参数
+
+  无
+
+* 返回值
+
+  | 返回值 | 类型 | 说明         |
+  | ------ | ---- | ------------ |
+  | -1     | int  | 获取失败     |
+  | 0      | int  | 连接已断开   |
+  | 1      | int  | 正在连接中   |
+  | 2      | int  | 已连接       |
+  | 3      | int  | 正在断开连接 |
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 控制主机开始播放
+
+> **bt.avrcpStart()**
+
+* 功能
+
+  控制主机开始播放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 控制主机停止播放
+
+> **bt.avrcpPause()**
+
+* 功能
+
+  控制主机停止播放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 控制主机播放上一首
+
+> **bt.avrcpPrev()**
+
+* 功能
+
+  控制主机播放上一首。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 控制主机播放下一首
+
+> **bt.avrcpNext()**
+
+* 功能
+
+  控制主机播放下一首。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 设置主机播放音量
+
+> **bt.avrcpSetVolume(vol)**
+
+* 功能
+
+  设置主机播放音量。
+
+* 参数
+
+  | 参数 | 类型 | 说明                  |
+  | ---- | ---- | --------------------- |
+  | vol  | int  | 播放音量，范围 0 - 11 |
+
+* 返回值
+
+  执行成功返回整形0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 获取主机播放音量
+
+> **bt.avrcpGetVolume()**
+
+* 功能
+
+  获取主机播放音量。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整形音量值，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 获取主机播放状态
+
+> **bt.avrcpGetPlayStatus()**
+
+* 功能
+
+  获取主机播放状态。
+
+* 参数
+
+  无
+
+* 返回值
+
+  | 返回值 | 类型 | 说明           |
+  | ------ | ---- | -------------- |
+  | -1     | int  | 获取失败       |
+  | 0      | int  | 没有播放       |
+  | 1      | int  | 正在播放       |
+  | 2      | int  | 暂停播放       |
+  | 3      | int  | 正在切换上一首 |
+  | 4      | int  | 正在切换下一首 |
+
+* 示例
+
+```python
+
+```
+
+
+
+##### AVRCP 获取与主机连接状态
+
+> **bt.avrcpGetConnStatus()**
+
+* 功能
+
+  通过AVRCP协议获取主机连接状态。
+
+* 参数
+
+  无
+
+* 返回值
+
+  | 返回值 | 类型 | 说明         |
+  | ------ | ---- | ------------ |
+  | -1     | int  | 获取失败     |
+  | 0      | int  | 连接已断开   |
+  | 1      | int  | 正在连接中   |
+  | 2      | int  | 已连接       |
+  | 3      | int  | 正在断开连接 |
+
+* 示例
+
+```python
+
+```
+
+
+
+##### A2DP/AVRCP 示例程序
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+示例说明：本例程提供一个通过A2DP/AVRCP实现的简易蓝牙音乐播放控制功能
+运行本例程后，通过手机搜索到设备名并点击连接；然后打开手机上的音乐播放软件，
+回到例程运行界面，根据提示菜单输入对应的控制命令来实现音乐的播放、暂停、上一首、
+下一首以及设置音量的功能
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+from machine import Pin
+
+BT_STATUS_DICT = {
+    'BT_NOT_RUNNING': 0,
+    'BT_IS_RUNNING': 1
+}
+
+A2DP_AVRCP_CONNECT_STATUS = {
+    'DISCONNECTED': 0,
+    'CONNECTING': 1,
+    'CONNECTED': 2,
+    'DISCONNECTING': 3
+}
+
+host_addr = 0
+msg_queue = Queue(10)
+
+# 如果对应播放通道外置了PA，且需要引脚控制PA开启，则需要下面步骤
+# 具体使用哪个GPIO取决于实际使用的引脚
+gpio11 = Pin(Pin.GPIO11, Pin.OUT, Pin.PULL_DISABLE, 0)
+gpio11.write(1)
+
+
+def cmd_proc(cmd):
+    cmds = ('1', '2', '3', '4', '5')
+    vols = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11')
+
+    if cmd in cmds:
+        if cmd == '5':
+            while True:
+                tmp = input('Please input volume: ')
+                if len(tmp) != 1:
+                    vol = tmp.split('Please input volume: ')[1]
+                else:
+                    vol = tmp
+                if vol in vols:
+                    return cmd, int(vol)
+                else:
+                    print('Volume should be in [0,11], try again.')
+        else:
+            return cmd, 0
+    else:
+        print('Command {} is not supported!'.format(cmd))
+        return -1
+
+def avrcp_play(args):
+    return bt.avrcpStart()
+
+def avrcp_pause(args):
+    return bt.avrcpPause()
+
+def avrcp_prev(args):
+    return bt.avrcpPrev()
+
+def avrcp_next(args):
+    return bt.avrcpNext()
+
+def avrcp_set_volume(vol):
+    return bt.avrcpSetVolume(vol)
+
+def bt_callback(args):
+    pass
+
+def bt_a2dp_avrcp_proc_task():
+    global msg_queue
+
+    cmd_handler = {
+        '1': avrcp_play,
+        '2': avrcp_pause,
+        '3': avrcp_prev,
+        '4': avrcp_next,
+        '5': avrcp_set_volume,
+    }
+    while True:
+        # print('wait msg...')
+        msg = msg_queue.get()
+        print('recv msg: {}'.format(msg))
+        cmd_handler.get(msg[0])(msg[1])
+
+
+def main():
+    global host_addr
+    global msg_queue
+
+    _thread.start_new_thread(bt_a2dp_avrcp_proc_task, ())
+    bt.init(bt_callback)
+    bt.setChannel(2)
+    retval = bt.a2dpavrcpInit()
+    if retval == 0:
+        print('BT A2DP/AVRCP initialization succeeded.')
+    else:
+        print('BT A2DP/AVRCP initialization failed.')
+        return -1
+
+    retval = bt.start()
+    if retval != 0:
+        print('BT start failed.')
+        return -1
+
+    utime.sleep_ms(1500)
+
+    old_name = bt.getLocalName()
+    if old_name == -1:
+        print('Get BT name error.')
+        return -1
+    print('The current BT name is {}'.format(old_name[1]))
+    new_name = 'QuecPython-a2dp'
+    print('Set new BT name to {}'.format(new_name))
+    retval = bt.setLocalName(0, new_name)
+    if retval == -1:
+        print('Set BT name failed.')
+        return -1
+    cur_name = bt.getLocalName()
+    if cur_name == -1:
+        print('Get new BT name error.')
+        return -1
+    else:
+        if cur_name[1] == new_name:
+            print('BT name changed successfully.')
+        else:
+            print('BT name changed failed.')
+
+    visible_mode = bt.getVisibleMode()
+    if visible_mode != -1:
+        print('The current BT visible mode is {}'.format(visible_mode))
+    else:
+        print('Get BT visible mode error.')
+        return -1
+
+    print('Set BT visible mode to 3.')
+    retval = bt.setVisibleMode(3)
+    if retval == -1:
+        print('Set BT visible mode error.')
+        return -1
+    count = 0
+    while True:
+        count += 1
+        if count % 5 == 0:
+            print('waiting to be connected...')
+        if count >= 10000:
+            count = 0
+        a2dp_status = bt.a2dpGetConnStatus()
+        avrcp_status = bt.avrcpGetConnStatus()
+        if a2dp_status == A2DP_AVRCP_CONNECT_STATUS['CONNECTED'] and avrcp_status == A2DP_AVRCP_CONNECT_STATUS['CONNECTED']:
+            print('========== BT connected! =========')
+            addr = bt.a2dpGetAddr()
+            if addr != -1:
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('The BT address on the host side: {}'.format(mac))
+                host_addr = addr
+            else:
+                print('Get BT addr error.')
+                return -1
+            print('Please open the music player software on your phone first.')
+            print('Please enter the following options to select a function:')
+            print('========================================================')
+            print('1 : play')
+            print('2 : pause')
+            print('3 : prev')
+            print('4 : next')
+            print('5 : set volume')
+            print('6 : exit')
+            print('========================================================')
+            while True:
+                tmp = input('> ')
+                if len(tmp) != 1:
+                    cmd = tmp.split('> ')[1]
+                else:
+                    cmd = tmp
+                if cmd == '6':
+                    break
+                retval = cmd_proc(cmd)
+                if retval != -1:
+                    msg_queue.put(retval)
+            break
+        else:
+            utime.sleep_ms(1000)
+    print('Ready to disconnect a2dp.')
+    retval = bt.a2dpDisconnect(host_addr)
+    if retval == 0:
+        print('a2dp connection disconnected successfully')
+    else:
+        print('Disconnect a2dp error.')
+    print('Ready to stop BT.')
+    retval = bt.stop()
+    if retval == 0:
+        print('BT has stopped.')
+    else:
+        print('BT stop error.')
+    bt.a2dpavrcpRelease()
+    bt.release()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+
+
+##### SPP 功能初始化
+
+> **bt.sppInit()**
+
+* 功能
+
+  SPP 功能初始化。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### SPP 资源释放
+
+> **bt.sppRelease()**
+
+* 功能
+
+  SPP 资源释放。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### SPP 建立连接
+
+> **bt.sppConnect(addr)**
+
+* 功能
+
+  建立SPP连接。
+
+* 参数
+
+  | 参数 | 类型 | 说明              |
+  | ---- | ---- | ----------------- |
+  | addr | 数组 | 蓝牙地址，6个字节 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### SPP 断开连接
+
+> **bt.sppDisconnect()**
+
+* 功能
+
+  断开SPP连接。
+
+* 参数
+
+  无
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### SPP 数据发送
+
+> **bt.sppSend(data)**
+
+* 功能
+
+  通过SPP发送数据。
+
+* 参数
+
+  | 参数 | 类型 | 说明         |
+  | ---- | ---- | ------------ |
+  | data | 数组 | 待发送的数据 |
+
+* 返回值
+
+  执行成功返回整型0，失败返回整型-1。
+
+* 示例
+
+```python
+
+```
+
+
+
+##### SPP 示例程序
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+示例说明：本例程提供一个通过SPP实现与手机端进行数据传输的功能
+（1）运行之前，需要先在手机端（安卓）安装蓝牙串口APP，如BlueSPP，然后打开该软件；
+（2）修改本例程中的目标设备的蓝牙名称，即 DST_DEVICE_INFO['dev_name'] 的值改为用户准备连接的手机的蓝牙名称；
+（3）运行本例程，例程中会先发起搜索周边设备的操作，直到搜索到目标设备，就会结束搜索，然后向目标设备发起SPP连接请求；
+（4）用户注意查看手机界面是否弹出蓝牙配对请求的界面，当出现时，点击配对；
+（5）配对成功后，用户即可进入到蓝牙串口界面，发送数据给设备，设备在收到数据后会回复“I have received the data you sent.”
+（6）手机端APP中点击断开连接，即可结束例程；
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+
+
+BT_NAME = 'QuecPython-SPP'
+
+BT_EVENT = {
+    'BT_START_STATUS_IND': 0,          # bt/ble start
+    'BT_STOP_STATUS_IND': 1,           # bt/ble stop
+    'BT_SPP_INQUIRY_IND': 6,           # bt spp inquiry ind
+    'BT_SPP_INQUIRY_END_IND': 7,       # bt spp inquiry end ind
+    'BT_SPP_RECV_DATA_IND': 14,        # bt spp recv data ind
+    'BT_SPP_CONNECT_IND': 61,          # bt spp connect ind
+    'BT_SPP_DISCONNECT_IND': 62,       # bt spp disconnect ind
+}
+
+DST_DEVICE_INFO = {
+    'dev_name': 'HUAWEI Mate40 Pro', # 要连接设备的蓝牙名称
+    'bt_addr': None
+}
+
+BT_IS_RUN = 0
+msg_queue = Queue(30)
+
+
+def bt_callback(args):
+    global msg_queue
+    msg_queue.put(args)
+
+
+def bt_event_proc_task():
+    global msg_queue
+    global BT_IS_RUN
+    global DST_DEVICE_INFO
+
+    while True:
+        print('wait msg...')
+        msg = msg_queue.get()  # 没有消息时会阻塞在这
+        event_id = msg[0]
+        status = msg[1]
+
+        if event_id == BT_EVENT['BT_START_STATUS_IND']:
+            print('event: BT_START_STATUS_IND')
+            if status == 0:
+                print('BT start successfully.')
+                BT_IS_RUN = 1
+
+                print('Set BT name to {}'.format(BT_NAME))
+                retval = bt.setLocalName(0, BT_NAME)
+                if retval != -1:
+                    print('BT name set successfully.')
+                else:
+                    print('BT name set failed.')
+                    bt.stop()
+                    continue
+
+                retval = bt.setVisibleMode(3)
+                if retval == 0:
+                    mode = bt.getVisibleMode()
+                    if mode == 3:
+                        print('BT visible mode set successfully.')
+                    else:
+                        print('BT visible mode set failed.')
+                        bt.stop()
+                        continue
+                else:
+                    print('BT visible mode set failed.')
+                    bt.stop()
+                    continue
+
+                retval = bt.startInquiry(15)
+                if retval != 0:
+                    print('Inquiry error.')
+                    bt.stop()
+                    continue
+            else:
+                print('BT start failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_STOP_STATUS_IND']:
+            print('event: BT_STOP_STATUS_IND')
+            if status == 0:
+                BT_IS_RUN = 0
+                print('BT stop successfully.')
+            else:
+                print('BT stop failed.')
+
+            retval = bt.sppRelease()
+            if retval == 0:
+                print('SPP release successfully.')
+            else:
+                print('SPP release failed.')
+            retval = bt.release()
+            if retval == 0:
+                print('BT release successfully.')
+            else:
+                print('BT release failed.')
+            break
+        elif event_id == BT_EVENT['BT_SPP_INQUIRY_IND']:
+            print('event: BT_SPP_INQUIRY_IND')
+            if status == 0:
+                rssi = msg[2]
+                name = msg[4]
+                addr = msg[5]
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('name: {}, addr: {}, rssi: {}'.format(name, mac, rssi))
+
+                if name == DST_DEVICE_INFO['dev_name']:
+                    print('The target device is found, device name {}'.format(name))
+                    DST_DEVICE_INFO['bt_addr'] = addr
+                    retval = bt.cancelInquiry()
+                    if retval != 0:
+                        print('cancel inquiry failed.')
+                        continue
+            else:
+                print('BT inquiry failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_INQUIRY_END_IND']:
+            print('event: BT_SPP_INQUIRY_END_IND')
+            if status == 0:
+                print('BT inquiry has ended.')
+                inquiry_sta = msg[2]
+                if inquiry_sta == 0:
+                    if DST_DEVICE_INFO['bt_addr'] is not None:
+                        print('Ready to connect to the target device : {}'.format(DST_DEVICE_INFO['dev_name']))
+                        retval = bt.sppConnect(DST_DEVICE_INFO['bt_addr'])
+                        if retval != 0:
+                            print('SPP connect failed.')
+                            bt.stop()
+                            continue
+                    else:
+                        print('Not found device [{}], continue to inquiry.'.format(DST_DEVICE_INFO['dev_name']))
+                        bt.cancelInquiry()
+                        bt.startInquiry(15)
+            else:
+                print('Inquiry end failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_RECV_DATA_IND']:
+            print('event: BT_SPP_RECV_DATA_IND')
+            if status == 0:
+                datalen = msg[2]
+                data = msg[3]
+                print('recv {} bytes data: {}'.format(datalen, data))
+                send_data = 'I have received the data you sent.'
+                print('send data: {}'.format(send_data))
+                retval = bt.sppSend(send_data)
+                if retval != 0:
+                    print('send data faied.')
+            else:
+                print('Recv data failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_CONNECT_IND']:
+            print('event: BT_SPP_CONNECT_IND')
+            if status == 0:
+                conn_sta = msg[2]
+                addr = msg[3]
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('SPP connect successful, conn_sta = {}, addr {}'.format(conn_sta, mac))
+            else:
+                print('Connect failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_DISCONNECT_IND']:
+            print('event: BT_SPP_DISCONNECT_IND')
+            conn_sta = msg[2]
+            addr = msg[3]
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('SPP disconnect successful, conn_sta = {}, addr {}'.format(conn_sta, mac))
+            bt.stop()
+            continue
+
+
+def main():
+    global BT_IS_RUN
+
+    _thread.start_new_thread(bt_event_proc_task, ())
+    retval = bt.init(bt_callback)
+    if retval == 0:
+        print('BT init successful.')
+    else:
+        print('BT init failed.')
+        return -1
+    retval = bt.sppInit()
+    if retval == 0:
+        print('SPP init successful.')
+    else:
+        print('SPP init failed.')
+        return -1
+    retval = bt.start()
+    if retval == 0:
+        print('BT start successful.')
+    else:
+        print('BT start failed.')
+        retval = bt.sppRelease()
+        if retval == 0:
+            print('SPP release successful.')
+        else:
+            print('SPP release failed.')
+        return -1
+
+    count = 0
+    while True:
+        utime.sleep(1)
+        count += 1
+        cur_time = utime.localtime()
+        timestamp = "{:02d}:{:02d}:{:02d}".format(cur_time[3], cur_time[4], cur_time[5])
+
+        if count % 5 == 0:
+            if BT_IS_RUN == 1:
+                print('[{}] BT SPP is running, count = {}......'.format(timestamp, count))
+                print('')
+            else:
+                print('BT SPP has stopped running, ready to exit.')
+                break
+
+
+if __name__ == '__main__':
+    main()
+```
+
+
+
+
+
 #### camera - 摄像扫码
 
 模块功能：实现摄像头预览，照相机，扫码功能
 
-注意：BC25PA平台不支持模块功能。
+注意：目前以下模块支持camera功能：EC200U系列、EC600U系列、EC600N系列，EC600S系列，EC800N系列。
 
 
 
@@ -11032,6 +13369,7 @@ if __name__ == '__main__':
 ###### 创建预览对象
 
 > **import camera**
+>
 > **preview = camera.camPreview(model,cam_w,cam_h,lcd_w,lcd_h,perview_level)**
 
 * 参数
@@ -11039,15 +13377,15 @@ if __name__ == '__main__':
 | 参数          | 参数类型 | 参数说明                                                     |
 | ------------- | -------- | ------------------------------------------------------------ |
 | model         | int      | camera型号：<br />*0: gc032a spi*<br />*1: bf3901 spi*       |
-| cam_w         | int      | *camera水平分辨率*                                           |
-| *cam_h*       | int      | *camera垂直分辨率*                                           |
-| *lcd_w*       | int      | *LCD水平分辨率*                                              |
-| *lcd_h*       | int      | *LCD垂直分辨率*                                              |
+| cam_w         | int      | camera水平分辨率                                             |
+| cam_h         | int      | camera垂直分辨率                                             |
+| lcd_w         | int      | LCD水平分辨率                                                |
+| lcd_h         | int      | LCD垂直分辨率                                                |
 | perview_level | int      | 预览等级[1,2]。<br />等级2只针对ASR平台，等级越高，图像越流畅,消耗资源越大 |
 
 * 返回值
 
-*-1*；初始化失败
+-1；初始化失败
 
 若返回对象，则表示创建成功
 
@@ -11101,6 +13439,7 @@ if __name__ == '__main__':
 ###### 创建对象
 
 **import camera**
+
 **scan= camera.camScandecode(model,decode_level,cam_w,cam_h,perview_level,lcd_w,lcd_h)**
 
 * 参数
@@ -11108,16 +13447,16 @@ if __name__ == '__main__':
 | 参数          | 参数类型 | 参数说明                                                     |
 | ------------- | -------- | ------------------------------------------------------------ |
 | model         | int      | camera型号：<br />*0: gc032a spi*<br />*1: bf3901 spi*       |
-| decode_level  | int      | *解码等级[1,2]，<br />等级2只针对ASR平台, 等级越高，识别效果越好但资源消耗越大*. |
-| cam_w         | int      | *camera水平分辨率*                                           |
-| *cam_h*       | int      | *camera垂直分辨率*                                           |
+| decode_level  | int      | 解码等级[1,2]，<br />等级2只针对ASR平台, 等级越高，识别效果越好但资源消耗越大. |
+| cam_w         | int      | camera水平分辨率                                             |
+| cam_h         | int      | camera垂直分辨率                                             |
 | perview_level | int      | 预览等级[0,2]。<br />等级2只针对ASR平台, 等级越高，图像越流畅,消耗资源越大<br />等于0时，无lcd预览功能,无需提前初始化LCD<br />等于1或2时，必须先初始化lcd |
-| *lcd_w*       | int      | *LCD水平分辨率*                                              |
-| *lcd_h*       | int      | *LCD垂直分辨率*                                              |
+| lcd_w         | int      | LCD水平分辨率                                                |
+| lcd_h         | int      | LCD垂直分辨率                                                |
 
 * 返回值
 
-*-1*；失败
+-1；失败
 
 若返回对象，则表示创建成功
 
@@ -11205,6 +13544,8 @@ if __name__ == '__main__':
 
 ###### 继续扫码识别功能
 
+**camScandecode.resume()**
+
 * 参数
 
 无
@@ -11249,7 +13590,8 @@ Scandecode.callback(callback)
 ###### 创建对象
 
 **import camera**
-**cap= camera.camCaputre(model,cam_w,cam_h,perview_level,lcd_w,lcd_h)**
+
+**cap= camera.camCapture(model,cam_w,cam_h,perview_level,lcd_w,lcd_h)**
 
 * 参数
 
@@ -11257,10 +13599,10 @@ Scandecode.callback(callback)
 | ------------- | -------- | ------------------------------------------------------------ |
 | model         | int      | camera型号：<br />*0: gc032a spi*<br />*1: bf3901 spi*       |
 | cam_w         | int      | camera水平分辨率                                             |
-| *cam_h*       | int      | *camera垂直分辨率*                                           |
-| perview_level | int      | 预览等级[0,2]。<br />等级2只针对ASR平台，等级越高，图像越流畅,消耗资源越大。<br />等于0时，无lcd预览功能，提前初始化LCD<br />等于1或2时，必须先初始化lcd |
-| *lcd_w*       | int      | LCD水平分辨率                                                |
-| *lcd_h*       | int      | *LCD垂直分辨率*                                              |
+| cam_h         | int      | camera垂直分辨率                                             |
+| perview_level | int      | 预览等级[0,2]。<br />等级2只针对ASR平台，等级越高，图像越流畅,消耗资源越大。<br />等于0时，无lcd预览功能，无须提前初始化LCD<br />等于1或2时，必须先初始化lcd |
+| lcd_w         | int      | LCD水平分辨率                                                |
+| lcd_h         | int      | LCD垂直分辨率                                                |
 
 * 返回值
 
@@ -11270,7 +13612,7 @@ Scandecode.callback(callback)
 
 ###### 打开摄像头
 
-**camCaputre.open()**
+**camCapture.open()**
 
 * 参数
 
@@ -11286,7 +13628,7 @@ Scandecode.callback(callback)
 
 ###### 关闭摄像头
 
-**camCaputre.close()**
+**camCapture.close()**
 
 * 参数
 
@@ -11304,7 +13646,7 @@ Scandecode.callback(callback)
 
 拍照格式为jpeg
 
-**camCaputre.start(width,  height, pic_name)**
+**camCapture.start(width,  height, pic_name)**
 
 * 参数
 
@@ -11322,7 +13664,7 @@ Scandecode.callback(callback)
 
 ###### 设置拍照回调
 
-**camCaputre.callback(callback)**
+**camCapture.callback(callback)**
 
 * 参数
 
@@ -11342,7 +13684,7 @@ Scandecode.callback(callback)
 def callback(para):
     print(para)		#para[0] 拍照结果 	0：成功 其它：失败
     				#para[1] 保存图片的名称	
-camCaputre.callback(callback) 
+camCapture.callback(callback) 
 ```
 
 
@@ -12282,13 +14624,13 @@ True
 ```
 
 ###### 事件说明
+
 对于本模块事件总体说明如下表:
+
 |event_id	|event_code	|recv_data	|data_len	|说明|
 | -------------- | ---------|----------|-------------|---------------------------- |
 |0	|0	|NULL	|0	|modem进入psm，上报此事件。此时模组不接受下发到模组的网络数据,可通过主动发送数据打破modem侧psm状态。|
 |0	|1	|NULL	|0	|modem退出psm模式，上报此事件。|
-|22	|4	|NULL	|0	|调用接口发送CON类型数据，如果发送成功上报此事件|
-|22	|5	|NULL	|0	|调用接口发送CON类型数据，如果发送失败上报此事件|
 |23	|6	|NULL	|0	|深休眠唤醒恢复连接成功，上报此事件。在调用AEP.set_event_callcb(usrfunc)时上报。|
 |23	|7	|NULL	|0	|深休眠唤醒恢复连接失败，可以采用断开连接，再重新连接。在调用AEP.set_event_callcb(usrfunc)时上报。|
 |24	|8	|NULL	|0	|云平台下发fota升级指令后，模组开始下载差分升级包时上报此事件。|
@@ -12902,6 +15244,66 @@ def do_task():
 aep=AEP(servcei_info['ip'],servcei_info['port'],modem_type['no_cache'])
 if __name__ == '__main__':
     do_task()
+
+```
+
+
+
+#### uping-(ICMP)ping包
+
+模块功能: 模拟发送icmp-ping包
+
+
+
+##### ping
+
+- 注意事项
+
+这里可能会存在异常, 由于host地址无法简历socket连接的异常
+
+通过初始化参数中的`COUNT`和`INTERVAL`来周期性的发送Ping包机制
+
+> **import uping**
+>
+> **up = uping.ping(HOST, SOURCE=None, COUNT=4, INTERVAL=1000, SIZE=64, TIMEOUT=5000, quiet=False)**
+
+- 参数
+
+| 参数     | 类型 | 说明                                                         |
+| -------- | ---- | ------------------------------------------------------------ |
+| HOST     | str  | 所要ping的域名地址, 例如"baidu.com"                          |
+| SOURCE   | str  | 源地址, 用于绑定, 一般情况下不需要传                         |
+| COUNT    | int  | 默认是4次,  发送4次ping包                                    |
+| INTERVAL | int  | 间隔时间, 默认是ms单位,  默认1000ms                          |
+| SIZE     | int  | 每次读取的包大小默认64, 无需修改                             |
+| TIMEOUT  | int  | 超时时间, 单位是ms单位, 默认是5000ms即5s                     |
+| quiet    | bool | 默认fasle,打印输出, 设置True后, 调用start的后得到的打印的值会被转换成对象返回, 而不是通过打印显示 |
+
+使用示例
+
+```python
+# 方式一
+# 打印输出方式
+import uping
+uping.ping('baidu.com')
+
+# 以下是uping.start()的输出, 无返回值
+#72 bytes from 49.49.48.46: icmp_seq=1, ttl=53, time=1169.909000 ms
+#72 bytes from 49.49.48.46: icmp_seq=2, ttl=53, time=92.060000 ms
+#72 bytes from 49.49.48.46: icmp_seq=3, ttl=53, time=94.818000 ms
+#72 bytes from 49.49.48.46: icmp_seq=4, ttl=53, time=114.879000 ms
+#4 packets transmitted, 4 packets received, 0 packet loss
+#round-trip min/avg/max = 92.06000000000001/367.916/1169.909 ms
+
+
+
+
+# 方式二
+# 设置quiet会得到输出结果
+import uping
+result = uping.ping('baidu.com', quiet=True)
+# result可以拿到对应数据
+# result(tx=4, rx=4, losses=0, min=76.93899999999999, avg=131.348, max=226.697)
 
 ```
 

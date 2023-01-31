@@ -201,7 +201,7 @@ b'\xb3\xc9Y\x1b\xe9'
 
 
 
-##### 初始化SD卡驱动(SPI接口)
+##### 注册存储设备 - SPI - SD卡
 
 目前仅EC600N/EC800N平台支持。
 
@@ -230,49 +230,7 @@ b'\xb3\xc9Y\x1b\xe9'
 
 
 
-##### 挂载文件系统
-
-> **uos.mount(vfs_obj, path)**
-
-挂载底层文件系统到VFS。
-
-* 参数
-
-| 参数    | 参数类型   | 参数说明         |
-| ------- | ---------- | ---------------- |
-| vfs_obj | vfs object | 文件系统对象     |
-| path    | str        | 文件系统的根目录 |
-
-* 返回值
-
-无。
-
-* 示例
-
-```python
->>> cdev = uos.VfsFat(1, 0, 4, 1)
->>> uos.mount(cdev, '/sd')
-```
-
-- SD卡（SPI接口）使用示例
-
-  目前仅EC600N/EC800N平台支持。
-
-```python
->>> cdev = uos.VfsFat(1, 0, 4, 1)
->>> uos.mount(cdev, '/sd')
->>> f = open('/sd/test.txt','w+')
->>> f.write('0123456')
->>> f.close()
->>> uos.listdir('/sd')
->>> f = open('/sd/test.txt','r')
->>> f.read()
->>> f.close()
-```
-
-
-
-##### 初始化SD卡驱动（SDIO接口）
+##### 注册存储设备 - SDIO - SD卡
 
 目前仅EC600U/EC200U平台支持。
 
@@ -304,7 +262,7 @@ b'\xb3\xc9Y\x1b\xe9'
 >>> udev = VfsSd("sd_fs")
 ```
 
-##### 设置检测管脚
+###### 设置检测管脚
 
 > **set_det(vfs_obj.GPIOn,mode)**
 
@@ -330,7 +288,7 @@ b'\xb3\xc9Y\x1b\xe9'
 >>> udev.set_det(udev.GPIO10,0)#使用GPIO10作为卡检测管脚，sd卡插上，检测口为低电平，sd卡取出，检测口为高电平（实际使用根据硬件）
 ```
 
-##### 设置插拔卡回调函数
+###### 设置插拔卡回调函数
 
 > **set_callback(fun)**
 
@@ -377,6 +335,93 @@ def call_back(para):
         
 udev.set_callback(call_back)
 ```
+
+
+
+##### **注册存储设备 - SPI NOR FLASH**
+
+目前仅EG915U支持
+
+> uos.VfsLfs1(readsize,progsize,lookahead,pname,spi_port,spi_clk)
+
+初始化spi nor flash,和外挂nor flash通信。使用SPI通信方式。
+
+* 参数
+
+| 参数      | 参数类型 | 参数说明                                                     |
+| --------- | -------- | ------------------------------------------------------------ |
+| readsize  | int      | 预留，暂未使用                                               |
+| progsize  | int      | 预留，暂未使用                                               |
+| lookahead | int      | 预留，暂未使用                                               |
+| pname     | str      | 固定为“ext_fs”。后续扩展                                     |
+| spi_port  | int      | 支持的端口参照SPI章节说明                                    |
+| spi_clk   | int      | 时钟频率：<br />EG915U：0：6.25M 1:12.5M  2:25M  3:50M  4:3.125M 5:1.5625M  6:781.25K |
+
+* 返回值
+
+  成功则返回VfsLfs1 object,失败则 OSError 19。
+
+* 示例
+
+  ```python
+  >>>ldev = uos.VfsLfs1(32, 32, 32, "ext_fs",1,0)
+  >>>uos.mount(ldev,'/ext')
+  >>>f = open('/ext/test.txt','w+')
+  >>>f.write('hello world!!!')
+  >>>f.close()
+  
+  >>>uos.listdir('ext')
+  
+  >>>f = open('/ext/test.txt','r')
+  >>>f.read()
+  >>>f.close()
+  
+  ```
+
+  
+
+
+##### 挂载文件系统
+
+> **uos.mount(vfs_obj, path)**
+
+挂载底层文件系统到VFS。
+
+* 参数
+
+| 参数    | 参数类型   | 参数说明         |
+| ------- | ---------- | ---------------- |
+| vfs_obj | vfs object | 文件系统对象     |
+| path    | str        | 文件系统的根目录 |
+
+* 返回值
+
+无。
+
+* 示例
+
+```python
+>>> cdev = uos.VfsFat(1, 0, 4, 1)
+>>> uos.mount(cdev, '/sd')
+```
+
+- SD卡（SPI接口）使用示例
+
+  目前仅EC600N/EC800N平台支持。
+
+```python
+>>> cdev = uos.VfsFat(1, 0, 4, 1)
+>>> uos.mount(cdev, '/sd')
+>>> f = open('/sd/test.txt','w+')
+>>> f.write('0123456')
+>>> f.close()
+>>> uos.listdir('/sd')
+>>> f = open('/sd/test.txt','r')
+>>> f.read()
+>>> f.close()
+```
+
+
 
 #### gc - 内存碎片回收
 
@@ -1920,7 +1965,7 @@ utime 模块用于获取当前时间和日期、测量时间间隔和延迟。�
 import utime
 start = utime.ticks_us()
 while pin.value() == 0:
-    if utime.ticks_diff(time.ticks_us(), start) > 500:
+    if utime.ticks_diff(utime.ticks_us(), start) > 500:
         raise TimeoutError
 ```
 

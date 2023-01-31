@@ -379,7 +379,7 @@ Manually modify DNS information, you can check whether the modification is succe
 | Parameter  | Type   | Description                                                  |
 | ---------- | ------ | ------------------------------------------------------------ |
 | profileIdx | int    | PPDP context index. Range: 1-8 [volte version with the largest default PID is used to register IMS, please do not repeat the operation]. It is generally set to 1, if set as 2-8, the private APN and password may be required. |
-| sim_id     | int    | simid, range：0/1, default 0.                                |
+| sim_id     | int    | simid, range：0/1, default 0，only SIM0 is supported now。   |
 | priDns     | string | Primary DNS                                                  |
 | secDns     | string | Secondary DNS                                                |
 
@@ -411,7 +411,7 @@ Get APN Information of user. If only simID is specified, the default APN is obta
 
 | Parameter  | Type | Description                                                     |
 | ---------- | -------- | ------------------------------------------------------------ |
-| simid      | int      | simid, range：0/1 |
+| simid      | int      | simid, range：0/1；only SIM0 is supported now. |
 | profileIdx | int      | PDP context index. Range for ASR : 1-8,range for unisoc : 1-7 |
 
 * Return Value
@@ -764,13 +764,13 @@ Note: The prerequisite for successfully obtaining IMSI, ICCID, and phone number 
 
 Send APDU command to SIM card.
 
-Note : Currently, only the ASR platform supports this function.
+Note : Currently, only the ASR-1603 platform supports this function.
 
 * Parameter
 
 | Parameter | Type   | Description                                                  |
 | --------- | ------ | ------------------------------------------------------------ |
-| simId     | int    | SIM card id, range : 0 or 1                                  |
+| simId     | int    | SIM card id, range : 0 or 1;only SIM0 is supported now       |
 | cmd       | string | command passed on by the MT to the SIM in the format as described in GSM 51.011 |
 
 * Return Value
@@ -1222,6 +1222,114 @@ This function obtains the SIM card hot-plugging related configuration.
 ```python
 >>> sim.getSimDet()
 (1, 0)
+```
+
+
+
+##### get the current simid
+
+> **sim.getCurSimid()**
+
+get the current simid.（just supported on the 1606 platform）
+
+* Parameter
+
+  * None
+
+* Return Value
+
+  * Returns the current simid, or returns -1 if failed.
+
+* Example
+
+```python
+>>> sim.getCurSimid() //current simid is sim0
+0
+```
+
+
+
+##### switchcard api
+
+> **sim.switchCard(simid)**
+
+switchcard api.（just supported on the 1606 platform）
+
+* Parameter
+
+  | Parameter    | Type | Description                                                  |
+  | ------------ | ---- | ------------------------------------------------------------ |
+  | simid        | int  | simid,  0:sim1  1:sim2                                       |
+
+* Return Value
+
+  * rerurn 0 if switchcard action is successful, else return -1;
+
+* Example
+
+```python
+>>> sim.getCurSimid() //current simid is sim0
+0
+>>> sim.switchCard(1) //switchcard from sim0 to sim1
+0
+>>> sim.getCurSimid() //current simid is sim1
+1
+```
+
+
+
+##### Register Callback Function for switchcard
+
+> **sim.setSwitchcardCallback(usrFun)**
+
+Call this API to registers the listening callback function.(just supported on the 1606 platform)
+
+* Note
+
+Not all switchcard failures are returned via callbacks:
+1.  The target card does not exist or is abnormal
+2.   The target card is the current card
+In the preceding cases, the card switching interface directly returns -1 and does not enter the actual card switching process.   Therefore, the callback is not triggered
+
+If the card switching condition is met, the card switching interface returns 0, and the underlying task is created to perform the card switching process.
+If the card switching fails or succeeds, the system returns the result through callback
+
+* Parameter
+
+| Parameter | Type     | Description                                                |
+| --------- | -------- | ---------------------------------------------------------- |
+| usrFun    | function | Listening callback function. See example for more details. |
+
+* Return Value
+
+  * Returns 0 on success, -1 otherwise.
+
+* Example
+
+```python
+HELIOS_SIM_SWITCH_CURRSIM_PSDC_UP（switchcard succeeded：7）
+HELIOS_SIM_SWITCH_ERROR（switchcard failed: 8）
+
+typedef enum
+{
+	HELIOS_SIM_SWITCH_INIT = 0,
+	HELIOS_SIM_SWITCH_START,
+	HELIOS_SIM_SWITCH_PRESIM_PDP_DOWN,
+	HELIOS_SIM_SWITCH_PRESIM_IMS_DOWN,
+	HELIOS_SIM_SWITCH_PRESIM_PSDC_DOWN,
+	HELIOS_SIM_SWITCH_CURRSIM_PDP_UP,
+    HELIOS_SIM_SWITCH_PRESIM_IMS_UP,
+	HELIOS_SIM_SWITCH_CURRSIM_PSDC_UP,
+	HELIOS_SIM_SWITCH_ERROR
+}HELIOS_SIM_SWITCH_STATE;
+
+import sim
+
+def cb(args):
+    switchcard_state = args
+    print('sim switchcard states:{}'.format(switchcard_state))
+    
+sim.setSwitchcardCallback(cb)
 ```
 
 
@@ -1985,6 +2093,8 @@ This function obtains the current information in the message storage.
   * `loc3` - The memory storage where the Received messages stored in;
   * `current_nums` - The current number of messages in the storage.
   * `max_nums` - The maximum number of messages can be stored in the storage.
+  
+  * -1  Failed execution.
 
 * Example
 
@@ -2266,19 +2376,19 @@ This function sets APN. After setting, you need to restart or switch to mode 0 a
 
 * Parameter
 
-  This API is a variable parameter function in Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc(excluding EG915) platform, and the number of parameters is 2 or 7. The number of parameters in other platforms is fixed at 2  ：
+  This API is a variable parameter function in Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc platform, and the number of parameters is 2 or 7. The number of parameters in other platforms is fixed at 7  ：
     The number of parameters is 2：net.setApn(apn, simid)
     The number of parameters is 7：net.setApn(pid, iptype, apn, usrname, password, authtype, simid)
   
-| Parameter | Type     | Description                                  |
-| -----     | -------- | -------------------------------------------- |
-| pid       | int      | PDP context index.                           |
-| iptype    | int      | IP type. 0-IPV4, 1-IPV6, 2-IPV4 and IPV6.    |
-| apn       | string   | apn name, The maximum length is 63 bytes.    |
-| usrname   | string   | user name, The maximum length is 63 bytes.   |
-| password  | string   | password, The maximum length is 63 bytes.    |
-| authtype  | int      | Authentication type,0-No authentication, 1-PAP, 2-CHAP, 3-PAP AND CHAP(just for CATM Platform)|
-| simid     | int      | simid<br>0 : SIM card 1<br/>1 :  SIM card 2  |
+| Parameter | Type   | Description                                                  |
+| --------- | ------ | ------------------------------------------------------------ |
+| pid       | int    | PDP context index.                                           |
+| iptype    | int    | IP type. 0-IPV4, 1-IPV6, 2-IPV4 and IPV6.                    |
+| apn       | string | apn name, The maximum length is 63 bytes.                    |
+| usrname   | string | user name, The maximum length is 63 bytes.                   |
+| password  | string | password, The maximum length is 63 bytes.                    |
+| authtype  | int    | Authentication type,0-No authentication, 1-PAP, 2-CHAP, 3-PAP AND CHAP(just for CATM Platform) |
+| simid     | int    | simid,（only SIM0 is supported now）<br>0 : SIM card 1<br/>1 :  SIM card 2 |
 
 * Return Value
 
@@ -2308,14 +2418,14 @@ This function obtains the current APN.
 
 * Parameter
 
-  This API is a variable parameter function in Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc(excluding EG915) platform, and the number of parameters is 1 or 2. The number of parameters in other platforms is fixed at 1  ：
+  This API is a variable parameter function in Qualcomm/ASR_1803s/ASR_1601/ASR_1606/Unisoc platform, and the number of parameters is 1 or 2. The number of parameters in other platforms is fixed at 2  ：
     The number of parameters is 2：net.setApn(pid, simid)
     The number of parameters is 1：net.setApn(simid)
   
-| Parameter | Type     | Description                                  |
-| -----     | -------- | -------------------------------------------- |
-| pid       | int      | PDP context index.                           |
-| simid     | int      | simid<br>0 : SIM card 1<br/>1 :  SIM card 2  |
+| Parameter | Type | Description                                                  |
+| --------- | ---- | ------------------------------------------------------------ |
+| pid       | int  | PDP context index.                                           |
+| simid     | int  | simid, (only SIM0 is supported now)<br>0 : SIM card 1<br/>1 :  SIM card 2 |
 
 * Return Value
 
@@ -2383,7 +2493,7 @@ case with one Parameter:
 
 * Parameter
 
-  This API is a variable parameter function in BC25 platform, and the number of parameters is 0 or 1. The number of parameters in other platforms is fixed at 0  ：
+  This API is a variable parameter function in BC25/EIGEN platform, and the number of parameters is 0 or 1. The number of parameters in other platforms is fixed at 0  ：
     The number of parameters is 0：net.getCellInfo()
     The number of parameters is 1：net.getCellInfo(sinr_enable)
   
@@ -2436,7 +2546,7 @@ case with one Parameter:
 | tac       | Tracing area code,  range : 0 ~ 65535                        |
 | earfcn    | Extended Absolute Radio Frequency Channel Number, range : 0-65535. |
 | rssi      | Received Signal Strength Indication. In LTE network, denotes RSRP quality (negative value), which is converted according to RSRP measurement report value, and the conversion relationship is as follows<br>RSRP quality = RSRP measurement report value - 140, unit : dBm, range : -140 ~ -44 dBm |
-| sinr      | Signal to Noise Ratio(supported in BC25，range : -30 ~ 30)   |
+| sinr      | Signal to Noise Ratio(supported in BC25/EIGEN，range : -30 ~ 30)   |
 
 * Example
 
@@ -2502,6 +2612,14 @@ The function obtains the current RAT and the roaming configuration.
 | 22    | GSM_CATNB,        BG95 supported                             |
 | 23    | CATM_CATNB,       BG95 supported                             |
 | 24    | GSM_CATM_CATNB,   BG95 supported                             |
+| 25   | CATM_GSM,         BG95 supported                             |
+| 26   | CATNB_GSM,        BG95 supported                             |
+| 27   | CATNB_CATM,       BG95 supported                             |
+| 28   | GSM_CATNB_CATM,   BG95 supported                             |
+| 29   | CATM_GSM_CATNB,   BG95 supported                             |
+| 30   | CATM_CATNB_GSM,   BG95 supported                             |
+| 31   | CATNB_GSM_CATM,   BG95 supported                             |
+| 32   | CATNB_CATM_GSM,   BG95 supported                             |
 
 * Example
 
@@ -2532,7 +2650,7 @@ The function sets the current RAT and the roaming configuration.
 
 * Note
 
-  The BC25PA platform does not support this module function. The EC200U/EC600U does not support roaming parameters.
+  The BC25PA platform does not support this module function. The Unisoc does not support roaming parameters.
 
 
 ##### Obtain the Network Mode
@@ -2613,7 +2731,7 @@ case with one Parameter:
 
 * Parameter
 
-  This API is a variable parameter function in BC25 platform, and the number of parameters is 0 or 1. The number of parameters in other platforms is fixed at 0  ：
+  This API is a variable parameter function except BC25 platform, and the number of parameters is 0 or 1. The number of parameters in other platforms is fixed at 0  ：
     The number of parameters is 0：net.getCellInfo()
     The number of parameters is 1：net.getCellInfo(sinr_enable)
   
@@ -2644,7 +2762,7 @@ case with one Parameter:
       `rsrp` : Reference Signal Receiving Power, range : -141 ~ -44 dBm, 99 indicates unknown or undetected signal <br/>
       `rsrq` : Reference Signal Receiving Quality, range : -20 ~ -3 dBm, A larger value indicates better signal reception quality <br/>
       `cqi` : Channel Quality
-	  `sinr`: Signal to Noise Ratio(supported in 1803s/qualcomm/unisoc，range : -30 ~ 30)
+	  `sinr`: Signal to Noise Ratio(supported except RDA platform，range : -30 ~ 30)
 * Example
 
 ```python
@@ -3050,6 +3168,218 @@ This function sets the current modem functionality.
 
 ```python
 >>> net.setModemFun(4)
+0
+```
+
+
+
+##### band Setting and obtaining
+
+##### band value comparison table
+
+| NET MODE        | BAND VALUE                                                       |
+| --------------- | ------------------------------------------------------------ |
+| EGPRS(GSM)      | EGSM900 - 0x1<br/>DCS1800 - 0x2<br/>GSM850 - 0x4<br/>PCS1900 - 0x8 |
+| LTE/eMTC/NB-IoT | BAND1 - 0x1<br/>BAND2 - 0x2<br/>BAND3 - 0x4<br/>BAND4 - 0x8<br/>BAND5 - 0x10<br/>BAND8 - 0x80<br/>BAND12 - 0x800<br/>BAND13 - 0x1000<br/>BAND18 - 0x20000<br/>BAND19 - 0x40000<br/>BAND20 - 0x80000<br/>BAND25 - 0x1000000<br/>BAND26 - 0x2000000<br/>BAND27 - 0x4000000<br/>BAND28 - 0x8000000<br/>BAND31 - 0x40000000<br/>BAND66 - 0x20000000000000000<br/>BAND71 - 0x400000000000000000<br/>BAND72 - 0x800000000000000000<br/>BAND73 - 0x1000000000000000000<br/>BAND85 - 0x1000000000000000000000<br/> |
+
+##### band of BG95M3
+
+| NET MODE | BAND VALUE                                                  |
+| -------- | ------------------------------------------------------------ |
+| eMTC     | B1/B2/B3/B4/B5/B8/B12/B13/B18/B19/B20/B25/B26/B27/B28/B66/B85 |
+| NB-IoT   | B1/B2/B3/B4/B5/B8/B12/B13/B18/B19/B20/B25/B28/B66/B71/B85    |
+| EGPRS    | GSM850/EGSM900/DCS1800/PCS1900                               |
+
+##### band of EG912NENAA
+
+| NET MODE | BAND VALUE                           |
+| -------- | ------------------------------------ |
+| LTE      | B1/B3/B5/B7/B8/B20/B28/B31/B72       |
+| EGPRS    | EGSM900/DCS1800                      |
+
+
+
+##### band Setting
+
+> **net.setBand(net_rat, gsm_band, band_tuple)**
+
+  Set required bands, that is, lock the bands specified by the user if the module supports them。 (Platforms are currently supported：CATM/EG912NENAA)
+
+* Parameter
+
+| Parameter  | Type  | Description                                                  |
+| ---------- | ----- | ------------------------------------------------------------ |
+| net_rat    | int   | Specify which net mode band is to be set<br>0 - GSM<br>1 - LTE<br>2 - CATM<br>3 - NB<br>note：The CATM platform does not support LTE<br/>The EG912NENAA platform just support GSM and LTE |
+| gsm_band   | int   | gsm band value<br/>0x01 - GSM_EGSM900<br/>0x02 - GSM_DCS1800<br>0x04 - GSM_GSM850<br/>0x08 - GSM_PCS1900 |
+| band_tuple | tuple | band value of other network modes，Is a tuple of four elements, each of which cannot exceed 4 bytes. The format is as follows：<br>(band_hh, band_hl, band_lh, band_ll)|
+
+* Return Value
+
+  * 0  Successful execution.
+  * -1  Failed execution.
+
+* Example
+
+```python
+import net
+import utime
+
+'''
+You can use the following two interfaces to set and obtain bands
+'''
+def set_band(net_rat, band_value):
+    if net_rat == 0:
+        retval = net.setBand(0, band_value, (0, 0, 0, 0))
+    else:
+        band_hh = (band_value & 0xFFFFFFFF000000000000000000000000) >> 96
+        band_hl = (band_value & 0x00000000FFFFFFFF0000000000000000) >> 64
+        band_lh = (band_value & 0x0000000000000000FFFFFFFF00000000) >> 32
+        band_ll = (band_value & 0x000000000000000000000000FFFFFFFF)
+        retval = net.setBand(net_rat, 0, (band_hh, band_hl, band_lh, band_ll))
+    return retval
+
+
+def get_band(net_rat):
+    return net.getBand(net_rat)
+
+#======================================================================================================
+
+'''
+Set the band of the GSM network to 0xa, that is, DCS1800 + PCS1900
+0xa = 0x2(DCS1800) + 0x8(PCS1900)
+'''
+def set_gsm_band_example():
+    print('Set GSM band to 0xa example:')
+    gsm_band = get_band(0)
+    print('GSM band value before setting:{}'.format(gsm_band))
+    ret = set_band(0, 0xa)
+    if ret == 0:
+        print('Set GSM band successfully.')
+    else:
+        print('Set GSM band failed.')
+    utime.sleep(1) # It takes a certain period of time to set the band. After a delay period, you can obtain the new result
+    gsm_band = get_band(0)
+    print('GSM band value after setting:{}'.format(gsm_band))
+    return ret
+
+
+'''
+Set the eMTC network band to 0x15, that is, set BAND1+BAND3+BAND5
+0x15 = 0x1(BAND1) + 0x4(BAND3) + 0x10(BAND5)
+'''
+def set_camt_band_example():
+    print('Set CATM band to 0x15 example:')
+    catm_band = get_band(2)
+    print('CATM band value before setting:{}'.format(catm_band))
+    ret = set_band(2, 0x15)
+    if ret == 0:
+        print('Set CATM band successfully.')
+    else:
+        print('Set CATM band failed.')
+    utime.sleep(1)
+    catm_band = get_band(2)
+    print('CATM band value after setting:{}'.format(catm_band))
+    return ret
+
+
+'''
+Set the eMTC network band to 0x1000800000000000020011，that is, set BAND1+BAND5+BAND18+BAND71+BAND85
+0x1000400000000000020011 = 0x1 + 0x10 + 0x20000 + 0x400000000000000000 + 0x1000000000000000000000
+'''
+def set_nb_band_example():
+    print('Set NB band to 0x1000400000000000020011 example:')
+    nb_band = get_band(3)
+    print('NB band value before setting:{}'.format(nb_band))
+    ret = set_band(3, 0x1000400000000000020011)
+    if ret == 0:
+        print('Set NB band successfully.')
+    else:
+        print('Set NB band failed.')
+    utime.sleep(1)
+    nb_band = get_band(3)
+    print('NB band value after setting:{}'.format(nb_band))
+    return ret
+
+
+def main():
+    set_gsm_band_example()
+    utime.sleep(1)
+    set_camt_band_example()
+    utime.sleep(1)
+    set_nb_band_example()
+
+
+if __name__ == '__main__':
+    main()
+    
+
+#===================================================================================================
+#result
+Set GSM band to 0xa example:
+GSM band value before setting:0xf
+Set GSM band successfully.
+GSM band value after setting:0xa
+
+Set CATM band to 0x15 example:
+CATM band value before setting:0x10000200000000090e189f
+Set CATM band successfully.
+CATM band value after setting:0x15
+
+Set NB band to 0x1000400000000000020011 example:
+NB band value before setting:0x10004200000000090e189f
+Set NB band successfully.
+NB band value after setting:0x1000400000000000020011
+
+```
+
+
+
+##### band obtaining
+
+> **net.getBand(net_rat)**
+
+Band obtaining。(Platforms are currently supported：CATM/EG912NENAA)
+
+* Parameter
+
+| Parameter | Type  | Description                                                  |
+| -------   | ----  | ------------------------------------------------------------ |
+| net_rat   | int   | Specify which net mode band is to be get<br>0 - GSM<br>1 - LTE<br>2 - CATM<br>3 - NB<br>note：The CATM platform does not support LTE<br/>The EG912NENAA platform just support GSM and LTE |
+
+* Return Value
+
+Return the band value as a hexadecimal string.
+
+* example
+
+```python
+net.getBand(2)
+'0x10000200000000090e189f'
+```
+
+
+
+##### band Restores the initial value
+
+> **net.bandRst()**
+
+band Restores the initial value。(Platforms are currently supported：EG912NENAA)
+
+* Parameter
+
+ * NA
+
+* Return Value
+
+  * 0  Successful execution.
+  * -1  Failed execution.
+
+* Example
+
+```python
+#Set it to another band and call the interface to check whether the interface is successfully restored to the initial value
+#EG912NENAA platform initial value：gsm_band:0x3(EGSM900/DCS1800 )  lte_band:0x8000000000480800D5(B1/B3/B5/B7/B8/B20/B28/B31/B72 )
+net.bandRst()
 0
 ```
 
@@ -3939,7 +4269,6 @@ Stop audio streaming
                   break
               audio_test.playStream(format, b)
               utime.sleep_ms(20)
-          f.close()
   
   
   play_from_fs()
@@ -4202,7 +4531,7 @@ record_test.getSize(“test.amr”)
 
 ###### Delete Recording File
 
-> **record.Delete(file_name/empty)**
+> **record.Delete(file_name)**
 
 Delete the recording file.
 
@@ -4214,9 +4543,9 @@ String type. The file name of the recording.
 
 Note: When the parameter is empty, delete all recording files in the object
 
-| Parameter | Parameter Type | Description                                                  |
-| --------- | -------------- | ------------------------------------------------------------ |
-| file_name | str            | File name of the recording. When the parameter is empty, delete all recording files in the object |
+| Parameter | Parameter Type | Description                |
+| --------- | -------------- | -------------------------- |
+| file_name | str            | File name of the recording |
 
 * Return Value
 
@@ -4229,7 +4558,6 @@ Note: When the parameter is empty, delete all recording files in the object
 
 ```python
 record_test.Delete(“test.amr”)
-record_test.Delete()
 ```
 
 
@@ -4720,12 +5048,12 @@ pk.powerKeyEventRegister(pwk_callback)
 Note: The BC25PA platform does not support this module function.
 ###### Constant Description
 
-| Constent | Description | Usage Platform                         |
-| -------- | ----------- | -------------------------------------- |
-| PWM.PWM0 | PWM0        | EC600S/EC600N/EC100Y/EC600U/EC200U/EC800N/EC600M |
-| PWM.PWM1 | PWM1        | EC600S/EC600N/EC100Y/EC800N/EC600M |
-| PWM.PWM2 | PWM2        | EC600S/EC600N/EC100Y/EC800N/EC600M |
-| PWM.PWM3 | PWM3        | EC600S/EC600N/EC100Y/EC800N/EC600M |
+| Constent | Description | Usage Platform                                               |
+| -------- | ----------- | ------------------------------------------------------------ |
+| PWM.PWM0 | PWM0        | EC600S/EC600N/EC100Y/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N |
+| PWM.PWM1 | PWM1        | EC600S/EC600N/EC100Y/EC800N/EC600M/EC800M/EG912N             |
+| PWM.PWM2 | PWM2        | EC600S/EC600N/EC100Y/EC800N/EC600M/EC800M/EG912N             |
+| PWM.PWM3 | PWM3        | EC600S/EC600N/EC100Y/EC800N/EC600M/EC800M/EG912N             |
 
 
 
@@ -4739,8 +5067,8 @@ Note: The BC25PA platform does not support this module function.
 
 | Parameter | Type | Description                                                  |
 | --------- | ---- | ------------------------------------------------------------ |
-| PWMn      | int  | PWM Number<br/>Note: EC100Y-CN module supports PWM0–PWM3, and the corresponding pins are as follows: <br/>PWM0 – Pin No. 19<br/>PWM1 – Pin No. 18<br/>PWM2 – Pin No. 23<br/>PWM3 – Pin No. 22<br/>Note: EC600S-CN/EC600N-CN  modules support PWM0–PWM3, and the corresponding pins are as follows: <br/>PWM0 – Pin No. 52<br/>PWM1 –Pin No. 53<br/>PWM2 – Pin No. 70<br/>PWM3 – Pin No. 69<br />Note：EC800N modules support PWM0-PWM3，and the corresponding pins are as follows：<br/>PWM0 – Pin No. 79<br/>PWM1 – Pin No. 78<br/>PWM2 – Pin No. 16<br/>PWM3 – Pin No. 49<br />Note: EC200U series module supports PWM0, and the corresponding pins are as follows: <br />PWM0 – Pin No. 135<br />Note: EC600U series module supports PWM0, and the corresponding pins are as follows:<br />PWM0 – Pin No. 70<br />Note: EC600M series module supports PWM0-PWM3, and the corresponding pins are as follows：<br/>PWM0 – Pin No. 57<br/>PWM1 – Pin No. 56<br/>PWM2 – Pin No. 70<br/>PWM3 – Pin No. 69 |
-| ABOVE_xx  | int  | EC600SCN/EC600N/EC800N modules:<br />PWM.ABOVE_MS              Range of MS level: (0,1023]<br/>PWM.ABOVE_1US               Range of US level: (0,157]<br/>PWM.ABOVE_10US               Range of US level: (1,1575]<br/>PWM.ABOVE_BELOW_US          Range of NS level: (0,1024]<br/>EC200U/EC600U modules:<br />PWM.ABOVE_MS            Range of MS level: (0,10]<br/>PWM.ABOVE_1US             Range of US level: (0,10000]<br/>PWM.ABOVE_10US             Range of US level: (1,10000]<br/>PWM.ABOVE_BELOW_US             Range of NS level: [100,65535] |
+| PWMn      | int  | PWM Number<br/>Note: EC100Y-CN module supports PWM0–PWM3, and the corresponding pins are as follows: <br/>PWM0 – Pin No. 19<br/>PWM1 – Pin No. 18<br/>PWM2 – Pin No. 23<br/>PWM3 – Pin No. 22<br/>Note: EC600S-CN/EC600N-CN  modules support PWM0–PWM3, and the corresponding pins are as follows: <br/>PWM0 – Pin No. 52<br/>PWM1 –Pin No. 53<br/>PWM2 – Pin No. 70<br/>PWM3 – Pin No. 69<br />Note：EC800N modules support PWM0-PWM3，and the corresponding pins are as follows：<br/>PWM0 – Pin No. 79<br/>PWM1 – Pin No. 78<br/>PWM2 – Pin No. 16<br/>PWM3 – Pin No. 49<br />Note: EC200U series module supports PWM0, and the corresponding pins are as follows: <br />PWM0 – Pin No. 135<br />Note: EC600U series module supports PWM0, and the corresponding pins are as follows:<br />PWM0 – Pin No. 70<br />Note: EC600M series module supports PWM0-PWM3, and the corresponding pins are as follows：<br/>PWM0 – Pin No. 57<br/>PWM1 – Pin No. 56<br/>PWM2 – Pin No. 70<br/>PWM3 – Pin No. 69<br />Note: EG915U series module supports PWM0, and the corresponding pins are as follows:<br />PWM0 – Pin No. 20<br />Note: EC800M series module supports PWM0-PWM3, and the corresponding pins are as follows：<br/>PWM0 – Pin No. 83<br/>PWM1 – Pin No. 78<br/>PWM2 – Pin No. 16<br/>PWM3 – Pin No. 49<br/>Note: EG912N series module supports PWM0-PWM3, and the corresponding pins are as follows：<br/>PWM0 – Pin No. 21<br/>PWM1 – Pin No. 116<br/>PWM2 – Pin No. 107<br/>PWM3 – Pin No. 92 |
+| ABOVE_xx  | int  | EC600SCN/EC600N/EC800N/EC600M/EC800M/EG912N modules:<br />PWM.ABOVE_MS              Range of MS level: (0,1023]<br/>PWM.ABOVE_1US               Range of US level: (0,157]<br/>PWM.ABOVE_10US               Range of US level: (1,1575]<br/>PWM.ABOVE_BELOW_US          Range of NS level: (0,1024]<br/>EC200U/EC600U/EG915U modules:<br />PWM.ABOVE_MS            Range of MS level: (0,10]<br/>PWM.ABOVE_1US             Range of US level: (0,10000]<br/>PWM.ABOVE_10US             Range of US level: (1,10000]<br/>PWM.ABOVE_BELOW_US             Range of NS level: [100,65535] |
 | highTime  | int  | In MS level, the unit is ms<br/>In US level, the unit is us<br/>In NS level: it needs to be calculated by the user<br/>               Frequency = 13Mhz / cycleTime<br/>               Duty cycle = highTime/ cycleTime |
 | cycleTime | int  | In MS level, the unit is ms<br/>In US level, the unit is us<br/>In NS level: it needs to be calculated by the user<br/>             Frequency = 13Mhz / cycleTime<br/>             Duty cycle = highTime/ cycleTime |
 
@@ -4835,8 +5163,8 @@ if __name__ == '__main__':
 
 | Constant | Description   | Usage Platform                                               |
 | -------- | ------------- | ------------------------------------------------------------ |
-| ADC.ADC0 | ADC Channel 0 | EC600S/EC600N/EC100Y/EC600U/EC200U/BC25PA/BG95M3/EC200A/EC600M |
-| ADC.ADC1 | ADC Channel 1 | EC600S/EC600N/EC600U/EC200U/EC200A/EC600M                    |
+| ADC.ADC0 | ADC Channel 0 | EC600S/EC600N/EC100Y/EC600U/EC200U/BC25PA/BG95M3/EC200A/EC600M/EG915U/EC800M/EG912N |
+| ADC.ADC1 | ADC Channel 1 | EC600U/EC200U/EC200A/EC600M/EG915U/EC800M/EG912N             |
 | ADC.ADC2 | ADC Channel 2 | EC600U/EC200U                                                |
 | ADC.ADC3 | ADC Channel 3 | EC600U                                                       |
 
@@ -4883,7 +5211,7 @@ It reads the voltage value of the specified channel. Unit: mV.
 
 | Parameter | Type | Description                                                  |
 | --------- | ---- | ------------------------------------------------------------ |
-| ADCn      | int  | ADC Channel<br/>The corresponding pins for EC100Y-CN module are as follows:<br/>ADC0 – Pin No. 39<br/>ADC1 – Pin No. 81<br/>The corresponding pins for EC600S-CN/EC600N_CN modules are as follows<br/>ADC0 – Pin No. 19<br/>The corresponding pins for EC600M modules are as follows<br/>ADC0 – Pin No. 19<br/>ADC1 – Pin No. 20<br/>The corresponding pins for EC800N/BC25PA series module are as follows<br />ADC0 – Pin No. 9<br/>The corresponding pins for EC600U series module are as follows<br />ADC0 – Pin No. 19<br/>ADC1 – Pin No. 20<br />ADC2 – Pin No. 113<br />ADC3 – Pin No. 114<br />The corresponding pins for EC200U series module are as follows<br />ADC0 – Pin No. 45<br/>ADC1 – Pin No. 44<br />ADC2 – Pin No.43<br />The corresponding pins for EC200A series module are as follows<br/>ADC0 – Pin No. 45<br/>ADC1 – Pin No. 44<br/>The corresponding pins for BG95M3 series module are as follows<br />ADC0 – Pin No. 24 |
+| ADCn      | int  | ADC Channel<br/>The corresponding pins for EC100Y-CN module are as follows:<br/>ADC0 – Pin No. 39<br/>ADC1 – Pin No. 81<br/>The corresponding pins for EC600S-CN/EC600N_CN modules are as follows<br/>ADC0 – Pin No. 19<br/>The corresponding pins for EC600M modules are as follows<br/>ADC0 – Pin No. 19<br/>ADC1 – Pin No. 20<br/>The corresponding pins for EC800N/BC25PA series module are as follows<br />ADC0 – Pin No. 9<br/>The corresponding pins for EC600U series module are as follows<br />ADC0 – Pin No. 19<br/>ADC1 – Pin No. 20<br />ADC2 – Pin No. 113<br />ADC3 – Pin No. 114<br />The corresponding pins for EC200U series module are as follows<br />ADC0 – Pin No. 45<br/>ADC1 – Pin No. 44<br />ADC2 – Pin No.43<br />The corresponding pins for EC200A series module are as follows<br/>ADC0 – Pin No. 45<br/>ADC1 – Pin No. 44<br/>The corresponding pins for BG95M3 series module are as follows<br />ADC0 – Pin No. 24<br />The corresponding pins for EG915U series module are as follows<br />ADC0 – Pin No. 24<br/>ADC1 – Pin No. 2<br/>The corresponding pins for EC800M series module are as follows<br/>ADC0 – Pin No. 9<br/>ADC1 – Pin No. 96<br/>The corresponding pins for EG912N series module are as follows<br/>ADC0 – Pin No. 24<br/>ADC1 – Pin No. 2 |
 
 * Return Value
 
@@ -5095,6 +5423,101 @@ USBNET.open()
 
 
 
+###### get the status of NAT enablement
+
+> **USBNET.getNat(simid, pid)**
+
+get the status of NAT enablement(Whether IPV6 is supported)(supported only on EC200U/EC600U)
+
+* Parameter
+
+|   Parameter   | Type     | Description                                           |
+|   --------    | -------- | ----------------------------------------------------- |
+|   simid       | int      | simid，value：0/1 ，(only SIM0 is supported now)      |
+|    pid        | int      | PDP context index ,range:1-7                          |
+
+* Return Value
+
+success：return the status of NAT enablement
+0：enabled，means:IPV6 is supported
+1：disabled，means:IPV6 is not supported
+
+failed： return -1
+
+* Example
+
+```python
+from misc import USBNET
+USBNET.getNat(0, 1)
+0
+```
+
+
+
+###### set NAT
+
+> **USBNET.setNat(simid, pid, Nat)**
+
+set NAT，Restart takes effect (supported only on EC200U/EC600U)
+( Usbnet.set_worktype () API will make the corresponding Nat value set to 1, so that the pid cannot dial up IPV6, so after close USBnet, you can use this interface to disable NAT and make IPV6 function normal)
+
+* Parameter
+
+|   Parameter   | Type     | Description                                           |
+|   --------    | -------- | ----------------------------------------------------- |
+|   simid       | int      | simid，value：0/1 ，(only SIM0 is supported now)      |
+|    pid        | int      | PDP context index ,range:1-7                          |
+|    Nat        | int      | Nat，value：0/1；0：IPV6 is supported；1：IPV6 is not supported |
+
+* Return Value
+
+Return 0 if successful, otherwise return -1
+
+* Example
+
+```python
+USBNET.setNat(0, 1, 0)
+0
+```
+
+
+
+##### Diversity antenna configuration API
+
+> **misc.antennaSecRXOffCtrl(\*args)**
+
+Diversity antenna configuration and query API(just supported on the 1803s platform)
+
+* parameter
+
+  This API is a variable parameter function ,and the number of parameters is 0 or 1：
+    The number of parameters is 0(query)：misc.antennaSecRXOffCtrl()
+    The number of parameters is 1(set)：misc.antennaSecRXOffCtrl(SecRXOff_set)
+  
+  |   Parameter   | Type     | Description                                           |
+  |   --------    | -------- | ----------------------------------------------------- |
+  | SecRXOff_set  | int      | range:0/1, 0:The diversity antenna is not turned off  1:Turn off the diversity antenna |
+
+* Return Value
+
+  * query: Return 0/1 if successful, otherwise return -1
+  
+  * set: Return 0 if successful, otherwise return -1
+
+* Example
+
+```python
+import misc
+misc.antennaSecRXOffCtrl() //get
+0
+misc.antennaSecRXOffCtrl(1) //set
+0
+misc.antennaSecRXOffCtrl() //get
+1
+```
+
+
+
 #### modem - Related Device
 
 Function: This module gets device information.
@@ -5225,50 +5648,50 @@ Function: GPIO read and write operations.
 
 | Constant         | Applicable Platform                                          | Description    |
 | ---------------- | ------------------------------------------------------------ | -------------- |
-| Pin.GPIO1        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO1          |
-| Pin.GPIO2        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO2          |
-| Pin.GPIO3        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO3          |
-| Pin.GPIO4        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO4          |
-| Pin.GPIO5        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO5          |
-| Pin.GPIO6        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO6          |
-| Pin.GPIO7        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO7          |
-| Pin.GPIO8        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO8          |
-| Pin.GPIO9        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO9          |
-| Pin.GPIO10       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO10         |
-| Pin.GPIO11       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO11         |
-| Pin.GPIO12       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO12         |
-| Pin.GPIO13       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M | GPIO13         |
-| Pin.GPIO14       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO14         |
-| Pin.GPIO15       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO15         |
-| Pin.GPIO16       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M | GPIO16         |
-| Pin.GPIO17       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/BC25PA/BG95M3/EC600M | GPIO17         |
-| Pin.GPIO18       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BC25PA/BG95M3/EC600M | GPIO18         |
-| Pin.GPIO19       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M | GPIO19         |
-| Pin.GPIO20       | EC600S / EC600N /EC600U/EC200U/EC200A/ EC800N / BG95M3/EC600M | GPIO20         |
-| Pin.GPIO21       | EC600S / EC600N /EC600U/EC200U/ EC800N / BG95M3/EC600M       | GPIO21         |
-| Pin.GPIO22       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO22         |
-| Pin.GPIO23       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO23         |
-| Pin.GPIO24       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO24         |
-| Pin.GPIO25       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO25         |
-| Pin.GPIO26       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO26         |
-| Pin.GPIO27       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO27         |
-| Pin.GPIO28       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO28         |
-| Pin.GPIO29       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO29         |
-| Pin.GPIO30       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO30         |
-| Pin.GPIO31       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO31         |
-| Pin.GPIO32       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO32         |
-| Pin.GPIO33       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO33         |
-| Pin.GPIO34       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO34         |
-| Pin.GPIO35       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO35         |
-| Pin.GPIO36       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M           | GPIO36         |
-| Pin.GPIO37       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M                  | GPIO37         |
-| Pin.GPIO38       | EC600S / EC600N/EC600U/EC200U/EC600M                         | GPIO38         |
-| Pin.GPIO39       | EC600S / EC600N/EC600U/EC200U/EC600M                         | GPIO39         |
-| Pin.GPIO40       | EC600S / EC600N/EC600U/EC200U/EC600M                         | GPIO40         |
-| Pin.GPIO41       | EC600S / EC600N/EC600U/EC200U/EC600M                         | GPIO41         |
-| Pin.GPIO42       | EC600U / EC200U/EC600M                                       | GPIO42         |
-| Pin.GPIO43       | EC600U / EC200U/EC200A/EC600M                                | GPIO43         |
-| Pin.GPIO44       | EC600U / EC200U/EC200A/EC600M                                | GPIO44         |
+| Pin.GPIO1        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO1          |
+| Pin.GPIO2        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO2          |
+| Pin.GPIO3        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO3          |
+| Pin.GPIO4        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO4          |
+| Pin.GPIO5        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO5          |
+| Pin.GPIO6        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO6          |
+| Pin.GPIO7        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO7          |
+| Pin.GPIO8        | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO8          |
+| Pin.GPIO9        | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO9          |
+| Pin.GPIO10       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO10         |
+| Pin.GPIO11       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO11         |
+| Pin.GPIO12       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO12         |
+| Pin.GPIO13       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO13         |
+| Pin.GPIO14       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO14         |
+| Pin.GPIO15       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO15         |
+| Pin.GPIO16       | EC600S / EC600N / EC100Y/EC600U/EC200U/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO16         |
+| Pin.GPIO17       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC800N/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO17         |
+| Pin.GPIO18       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO18         |
+| Pin.GPIO19       | EC600S / EC600N / EC100Y/EC600U/EC200U/EC200A/EC800N/BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO19         |
+| Pin.GPIO20       | EC600S / EC600N /EC600U/EC200U/EC200A/ EC800N / BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO20         |
+| Pin.GPIO21       | EC600S / EC600N /EC600U/EC200U/ EC800N / BG95M3/EC600M/EG915U/EC800M/EG912N | GPIO21         |
+| Pin.GPIO22       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO22         |
+| Pin.GPIO23       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EG915U/EC800M/EG912N | GPIO23         |
+| Pin.GPIO24       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EG915U/EC800M/EG912N | GPIO24         |
+| Pin.GPIO25       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EG915U/EC800M/EG912N | GPIO25         |
+| Pin.GPIO26       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EG915U/EC800M/EG912N | GPIO26         |
+| Pin.GPIO27       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO27         |
+| Pin.GPIO28       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO28         |
+| Pin.GPIO29       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO29         |
+| Pin.GPIO30       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO30         |
+| Pin.GPIO31       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO31         |
+| Pin.GPIO32       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO32         |
+| Pin.GPIO33       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO33         |
+| Pin.GPIO34       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO34         |
+| Pin.GPIO35       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO35         |
+| Pin.GPIO36       | EC600S / EC600N/EC600U/EC200U/EC200A/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO36         |
+| Pin.GPIO37       | EC600S / EC600N/EC600U/EC200U/EC800N/EC600M/EG915U/EC800M/EG912N | GPIO37         |
+| Pin.GPIO38       | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N    | GPIO38         |
+| Pin.GPIO39       | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N    | GPIO39         |
+| Pin.GPIO40       | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M/EG912N    | GPIO40         |
+| Pin.GPIO41       | EC600S / EC600N/EC600U/EC200U/EC600M/EG915U/EC800M           | GPIO41         |
+| Pin.GPIO42       | EC600U / EC200U/EC600M/EC800M                                | GPIO42         |
+| Pin.GPIO43       | EC600U / EC200U/EC200A/EC600M/EC800M                         | GPIO43         |
+| Pin.GPIO44       | EC600U / EC200U/EC200A/EC600M/EC800M                         | GPIO44         |
 | Pin.GPIO45       | EC600U / EC200U/EC200A/EC600M                                | GPIO45         |
 | Pin.GPIO46       | EC600U / EC200U/EC200A                                       | GPIO46         |
 | Pin.GPIO47       | EC200U/EC200A                                                | GPIO47         |
@@ -5290,7 +5713,7 @@ The GPIO pin numbers provided in this document correspond to the external pin nu
 
 | Parameter | Type | Description                                                  |
 | :-------- | :--- | ------------------------------------------------------------ |
-| GPIOn     | int  | Pin Number<br />The  corresponding pins of EC100Y-CN module are as follows (pin number is external pin number):<br />GPIO1 – Pin No. 22<br />GPIO2 – Pin No. 23<br />GPIO3 – Pin No. 38<br />GPIO4 – Pin No. 53<br />GPIO5 – Pin No. 54<br />GPIO6 – Pin No. 104<br />GPIO7 – Pin No. 105<br />GPIO8 – Pin No. 106<br />GPIO9 – Pin No. 107<br />GPIO10 – Pin No. 178<br />GPIO11 – Pin No. 195<br />GPIO12 – Pin No. 196<br />GPIO13 – Pin No. 197<br />GPIO14 – Pin No. 198<br />GPIO15 – Pin No. 199<br />GPIO16 – Pin No. 203<br />GPIO17 – Pin No. 204<br />GPIO18 – Pin No. 214<br />GPIO19 – Pin No. 215<br />The corresponding pins of EC600S-CN/EC600N-CN modules are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 10<br />GPIO2 – Pin No. 11<br />GPIO3 – Pin No. 12<br />GPIO4 – Pin No. 13<br />GPIO5 – Pin No. 14<br />GPIO6 – Pin No. 15<br />GPIO7 – Pin No. 16<br />GPIO8 – Pin No. 39<br />GPIO9 – Pin No. 40<br />GPIO10 – Pin No. 48<br />GPIO11 – Pin No. 58<br />GPIO12 – Pin No. 59<br />GPIO13 – Pin No. 60<br />GPIO14 – Pin No. 61<br />GPIO15 – Pin No. 62<br/>GPIO16 – Pin No. 63<br/>GPIO17 – Pin No. 69<br/>GPIO18 – Pin No. 70<br/>GPIO19 – Pin No. 1<br/>GPIO20 – Pin No. 3<br/>GPIO21 – Pin No. 49<br/>GPIO22 – Pin No. 50<br/>GPIO23 – Pin No. 51<br/>GPIO24 – Pin No. 52<br/>GPIO25 – Pin No. 53<br/>GPIO26 – Pin No. 54<br/>GPIO27 – Pin No. 55<br/>GPIO28 – Pin No. 56<br/>GPIO29 – Pin No. 57<br />GPIO30 – Pin No. 2<br />GPIO31 – Pin No. 66<br />GPIO32 – Pin No. 65<br />GPIO33 – Pin No. 67<br />GPIO34 – Pin No. 64<br />GPIO35 – Pin No. 4<br />GPIO36 – Pin No. 31<br />GPIO37 – Pin No. 32<br />GPIO38 – Pin No. 33<br />GPIO39 – Pin No. 34<br />GPIO40 – Pin No. 71<br />GPIO41 – Pin No. 72<br />The corresponding pins of EC600M series module are as follows (pin number is external pin number)：<br />GPIO1 – Pin No. 10<br />GPIO2 – Pin No. 11<br />GPIO3 – Pin No. 12<br />GPIO4 – Pin No. 13<br />GPIO5 – Pin No. 14<br />GPIO6 – Pin No. 15<br />GPIO7 – Pin No. 16<br />GPIO8 – Pin No. 39<br />GPIO9 – Pin No. 40<br />GPIO10 – Pin No. 48<br />GPIO11 – Pin No. 58<br />GPIO12 – Pin No. 59<br />GPIO13 – Pin No. 60<br />GPIO14 – Pin No. 61<br />GPIO15 – Pin No. 62<br/>GPIO16 – Pin No. 63<br/>GPIO17 – Pin No. 69<br/>GPIO18 – Pin No. 70<br/>GPIO19 – Pin No. 1<br/>GPIO20 – Pin No. 3<br/>GPIO21 – Pin No. 49<br/>GPIO22 – Pin No. 50<br/>GPIO23 – Pin No. 51<br/>GPIO24 – Pin No. 52<br/>GPIO25 – Pin No. 53<br/>GPIO26 – Pin No. 54<br/>GPIO27 – Pin No. 55<br/>GPIO28 – Pin No. 56<br/>GPIO29 – Pin No. 57<br />GPIO30 – Pin No. 2<br />GPIO31 – Pin No. 66<br />GPIO32 – Pin No. 65<br />GPIO33 – Pin No. 67<br />GPIO34 – Pin No. 64<br />GPIO35 – Pin No. 4<br />GPIO36 – Pin No. 31<br />GPIO37 – Pin No. 32<br />GPIO38 – Pin No. 33<br />GPIO39 – Pin No. 34<br />GPIO40 – Pin No. 71<br />GPIO41 – Pin No. 72<br />GPIO42 – Pin No. 109<br />GPIO43 – Pin No. 110<br />GPIO44 – Pin No. 112<br />GPIO45 – Pin No. 111<br/>The corresponding pins of EC600U series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 61(cannot be gpio function at the same time as GPIO31)<br />GPIO2 – Pin No. 58(cannot be gpio function at the same time as GPIO32)<br />GPIO3 – Pin No. 34(cannot be gpio function at the same time as GPIO41)<br />GPIO4 – Pin No. 60(cannot be gpio function at the same time as GPIO34)<br />GPIO5 – Pin No. 69(cannot be gpio function at the same time as GPIO35)<br />GPIO6 – Pin No. 70(cannot be gpio function at the same time as GPIO36)<br />GPIO7 – Pin No. 123(cannot be gpio function at the same time as GPIO43)<br />GPIO8 – Pin No. 118<br />GPIO9 – Pin No. 9<br />GPIO10 – Pin No. 1(cannot be gpio function at the same time as GPIO37)<br />GPIO11 – Pin No. 4(cannot be gpio function at the same time as GPIO38)<br />GPIO12 – Pin No. 3(cannot be gpio function at the same time as GPIO39)<br />GPIO13 – Pin No. 2(cannot be gpio function at the same time as GPIO40)<br />GPIO14 – Pin No. 54<br />GPIO15 – Pin No. 57<br/>GPIO16 – Pin No. 56<br/>GPIO17 – Pin No. 12<br/>GPIO18 – Pin No. 33(cannot be gpio function at the same time as GPIO42)<br/>GPIO19 – Pin No. 124(cannot be gpio function at the same time as GPIO44)<br/>GPIO20 – Pin No. 122(cannot be gpio function at the same time as GPIO45)<br/>GPIO21 – Pin No. 121(cannot be gpio function at the same time as GPIO46)<br/>GPIO22 – Pin No. 48<br/>GPIO23 – Pin No. 39<br/>GPIO24 – Pin No. 40<br/>GPIO25 – Pin No. 49<br/>GPIO26 – Pin No. 50<br/>GPIO27 – Pin No. 53<br/>GPIO28 – Pin No. 52<br/>GPIO29 – Pin No. 51<br/>GPIO30 – Pin No. 59(cannot be gpio function at the same time as GPIO33)<br/>GPIO31 – Pin No. 66(cannot be gpio function at the same time as GPIO1)<br/>GPIO32 – Pin No. 63(cannot be gpio function at the same time as GPIO2)<br/>GPIO33 – Pin No. 67(cannot be gpio function at the same time as GPIO30)<br/>GPIO34 – Pin No. 65(cannot be gpio function at the same time as GPIO4)<br/>GPIO35 – Pin No. 137(cannot be gpio function at the same time as GPIO5)<br/>GPIO36 – Pin No. 62(cannot be gpio function at the same time as GPIO6)<br/>GPIO37 – Pin No. 98(cannot be gpio function at the same time as GPIO10)<br/>GPIO38 – Pin No. 95(cannot be gpio function at the same time as GPIO11)<br/>GPIO39 – Pin No. 119(cannot be gpio function at the same time as GPIO12)<br/>GPIO40 – Pin No. 100(cannot be gpio function at the same time as GPIO13)<br/>GPIO41 – Pin No. 120(cannot be gpio function at the same time as GPIO3)<br/>GPIO42 – Pin No. 16(cannot be gpio function at the same time as GPIO18)<br/>GPIO43 – Pin No. 10(cannot be gpio function at the same time as GPIO7)<br/>GPIO44 – Pin No. 14(cannot be gpio function at the same time as GPIO19)<br/>GPIO45 – Pin No. 15(cannot be gpio function at the same time as GPIO20)<br/>GPIO46 – Pin No. 13(cannot be gpio function at the same time as GPIO21)<br/>The corresponding pins of EC200U series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 27(cannot be gpio function at the same time as GPIO31)<br />GPIO2 – Pin No. 26(cannot be gpio function at the same time as GPIO32)<br />GPIO3 – Pin No. 24(cannot be gpio function at the same time as GPIO33)<br />GPIO4 – Pin No. 25(cannot be gpio function at the same time as GPIO34)<br />GPIO5 – Pin No. 13(cannot be gpio function at the same time as GPIO17)<br />GPIO6 – Pin No. 135(cannot be gpio function at the same time as GPIO36)<br />GPIO7 – Pin No. 136(cannot be gpio function at the same time as GPIO44)<br />GPIO8 – Pin No. 133<br />GPIO9 – Pin No. 3(cannot be gpio function at the same time as GPIO37)<br />GPIO10 – Pin No. 40(cannot be gpio function at the same time as GPIO38)<br />GPIO11 – Pin No. 37(cannot be gpio function at the same time as GPIO39)<br />GPIO12 – Pin No. 38(cannot be gpio function at the same time as GPIO40)<br />GPIO13 – Pin No. 39(cannot be gpio function at the same time as GPIO41)<br />GPIO14 – Pin No. 5<br />GPIO15 – Pin No. 141<br/>GPIO16 – Pin No. 142<br/>GPIO17 – Pin No. 121(cannot be gpio function at the same time as GPIO5)<br/>GPIO18 – Pin No. 65(cannot be gpio function at the same time as GPIO42)<br/>GPIO19 – Pin No. 64(cannot be gpio function at the same time as GPIO43)<br/>GPIO20 – Pin No. 139(cannot be gpio function at the same time as GPIO45)<br/>GPIO21 – Pin No. 126(cannot be gpio function at the same time as GPIO46)<br/>GPIO22 – Pin No. 127(cannot be gpio function at the same time as GPIO47)<br/>GPIO23 – Pin No. 33<br/>GPIO24 – Pin No. 31<br/>GPIO25 – Pin No. 30<br/>GPIO26 – Pin No. 29<br/>GPIO27 – Pin No. 28<br/>GPIO28 – Pin No. 1<br/>GPIO29 – Pin No. 2<br/>GPIO30 – Pin No. 4<br/>GPIO31 – Pin No. 125(cannot be gpio function at the same time as GPIO1)<br/>GPIO32 – Pin No. 124(cannot be gpio function at the same time as GPIO2)<br/>GPIO33 – Pin No. 123(cannot be gpio function at the same time as GPIO3)<br/>GPIO34 – Pin No. 122(cannot be gpio function at the same time as GPIO4)<br/>GPIO35 – Pin No. 42<br/>GPIO36 – Pin No. 119(cannot be gpio function at the same time as GPIO6)<br/>GPIO37 – Pin No. 134(cannot be gpio function at the same time as GPIO9)<br/>GPIO38 – Pin No. 132(cannot be gpio function at the same time as GPIO10)<br/>GPIO39 – Pin No. 131(cannot be gpio function at the same time as GPIO11)<br/>GPIO40 – Pin No. 130(cannot be gpio function at the same time as GPIO12)<br/>GPIO41 – Pin No. 129(cannot be gpio function at the same time as GPIO13)<br/>GPIO42 – Pin No. 61(cannot be gpio function at the same time as GPIO18)<br/>GPIO43 – Pin No. 62(cannot be gpio function at the same time as GPIO19)<br/>GPIO44 – Pin No. 63(cannot be gpio function at the same time as GPIO7)<br/>GPIO45 – Pin No. 66(cannot be gpio function at the same time as GPIO20)<br/>GPIO46 – Pin No. 6(cannot be gpio function at the same time as GPIO21)<br/>GPIO47 – Pin No. 23(cannot be gpio function at the same time as GPIO22)<br/>The corresponding pins of EC200A series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 27<br />GPIO2 – Pin No. 26<br />GPIO3 – Pin No.24<br />GPIO4 – Pin No.25<br />GPIO6 – Pin No.135<br />GPIO7 – Pin No.136<br />GPIO9 – Pin No. 3<br />GPIO10 – Pin No. 40<br />GPIO11 – Pin No. 37<br />GPIO12 – Pin No. 38<br />GPIO13 – Pin No. 39<br />GPIO18 – Pin No. 65<br />GPIO19 – Pin No. 64<br />GPIO20 – Pin No. 139<br />GPIO22 – Pin No. 127<br />GPIO28 – Pin No. 1<br />GPIO29 – Pin No. 2<br />GPIO30 – Pin No. 4<br />GPIO35 – Pin No. 42<br />GPIO36 – Pin No. 119<br />GPIO43 – Pin No. 62<br />GPIO44 – Pin No. 63<br />GPIO45 – Pin No. 66<br />GPIO46 – Pin No. 6<br />GPIO47 – Pin No. 23<br/>The corresponding pins of EC800NCN series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 30<br />GPIO2 – Pin No. 31<br />GPIO3 – Pin No. 32<br />GPIO4 – Pin No. 33<br />GPIO5 – Pin No. 49<br />GPIO6 – Pin No. 50<br />GPIO7 – Pin No. 51<br />GPIO8 – Pin No. 52<br />GPIO9 – Pin No. 53<br />GPIO10 – Pin No. 54<br />GPIO11 – Pin No. 55<br />GPIO12 – Pin No. 56<br />GPIO13 – Pin No. 57<br />GPIO14 – Pin No. 58<br />GPIO15 – Pin No. 80<br/>GPIO16 – Pin No. 81<br/>GPIO17 – Pin No. 76<br/>GPIO18 – Pin No. 77<br/>GPIO19 – Pin No. 82<br/>GPIO20 – Pin No. 83<br/>GPIO21 – Pin No. 86<br/>GPIO22 – Pin No. 87<br/>GPIO23 – Pin No. 66<br/>GPIO24 – Pin No. 67<br/>GPIO25 – Pin No. 17<br/>GPIO26 – Pin No. 18<br/>GPIO27 – Pin No. 19<br/>GPIO28 – Pin No. 20<br/>GPIO29 – Pin No. 21<br />GPIO30 – Pin No. 22<br />GPIO31 – Pin No. 23<br />GPIO32 – Pin No. 28<br />GPIO33 – Pin No. 29<br />GPIO34 – Pin No. 38<br />GPIO35 – Pin No. 39<br />GPIO36 – Pin No. 16<br />GPIO37 – Pin No. 78<br />The pin correspondence of BC25PA platform is as follows (pin numbers are external pin numbers):<br />GPIO1 – Pin No. 3<br />GPIO2 – Pin No. 4<br />GPIO3 – Pin No. 5<br />GPIO4 – Pin No. 6<br />GPIO5 – Pin No. 16<br />GPIO6 – Pin No. 20<br />GPIO7 – Pin No. 21<br />GPIO8 – Pin No. 22<br />GPIO9 – Pin No. 23<br />GPIO10 – Pin No. 25<br />GPIO11 – Pin No. 28<br />GPIO12 – Pin No. 29<br />GPIO13 – Pin No. 30<br />GPIO14 – Pin No. 31<br />GPIO15 – Pin No. 32<br/>GPIO16 – Pin No. 33<br/>GPIO17 – Pin No. 2<br/>GPIO18 – Pin No. 8<br/>The pin correspondence of BG95M3 platform is as follows (pin numbers are external pin numbers):<br />GPIO1 – Pin No. 4<br />GPIO2 – Pin No. 5<br />GPIO3 – Pin No. 6<br />GPIO4 – Pin No. 7<br />GPIO5 – Pin No. 18<br />GPIO6 – Pin No. 19<br />GPIO7 – Pin No. 22<br />GPIO8 – Pin No. 23<br />GPIO9 – Pin No. 25<br />GPIO10 – Pin No. 26<br />GPIO11 – Pin No. 27<br />GPIO12 – Pin No. 28<br />GPIO13 – Pin No. 40<br />GPIO14 – Pin No. 41<br />GPIO15 – Pin No. 64<br/>GPIO16 – Pin No. 65<br/>GPIO17 – Pin No. 66<br />GPIO18 – Pin No. 85<br />GPIO19 – Pin No. 86<br />GPIO20 – Pin No. 87<br />GPIO21 – Pin No. 88 |
+| GPIOn     | int  | Pin Number<br />The  corresponding pins of EC100Y-CN module are as follows (pin number is external pin number):<br />GPIO1 – Pin No. 22<br />GPIO2 – Pin No. 23<br />GPIO3 – Pin No. 38<br />GPIO4 – Pin No. 53<br />GPIO5 – Pin No. 54<br />GPIO6 – Pin No. 104<br />GPIO7 – Pin No. 105<br />GPIO8 – Pin No. 106<br />GPIO9 – Pin No. 107<br />GPIO10 – Pin No. 178<br />GPIO11 – Pin No. 195<br />GPIO12 – Pin No. 196<br />GPIO13 – Pin No. 197<br />GPIO14 – Pin No. 198<br />GPIO15 – Pin No. 199<br />GPIO16 – Pin No. 203<br />GPIO17 – Pin No. 204<br />GPIO18 – Pin No. 214<br />GPIO19 – Pin No. 215<br />The corresponding pins of EC600S-CN/EC600N-CN modules are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 10<br />GPIO2 – Pin No. 11<br />GPIO3 – Pin No. 12<br />GPIO4 – Pin No. 13<br />GPIO5 – Pin No. 14<br />GPIO6 – Pin No. 15<br />GPIO7 – Pin No. 16<br />GPIO8 – Pin No. 39<br />GPIO9 – Pin No. 40<br />GPIO10 – Pin No. 48<br />GPIO11 – Pin No. 58<br />GPIO12 – Pin No. 59<br />GPIO13 – Pin No. 60<br />GPIO14 – Pin No. 61<br />GPIO15 – Pin No. 62<br/>GPIO16 – Pin No. 63<br/>GPIO17 – Pin No. 69<br/>GPIO18 – Pin No. 70<br/>GPIO19 – Pin No. 1<br/>GPIO20 – Pin No. 3<br/>GPIO21 – Pin No. 49<br/>GPIO22 – Pin No. 50<br/>GPIO23 – Pin No. 51<br/>GPIO24 – Pin No. 52<br/>GPIO25 – Pin No. 53<br/>GPIO26 – Pin No. 54<br/>GPIO27 – Pin No. 55<br/>GPIO28 – Pin No. 56<br/>GPIO29 – Pin No. 57<br />GPIO30 – Pin No. 2<br />GPIO31 – Pin No. 66<br />GPIO32 – Pin No. 65<br />GPIO33 – Pin No. 67<br />GPIO34 – Pin No. 64<br />GPIO35 – Pin No. 4<br />GPIO36 – Pin No. 31<br />GPIO37 – Pin No. 32<br />GPIO38 – Pin No. 33<br />GPIO39 – Pin No. 34<br />GPIO40 – Pin No. 71<br />GPIO41 – Pin No. 72<br />The corresponding pins of EC600M series module are as follows (pin number is external pin number)：<br />GPIO1 – Pin No. 10<br />GPIO2 – Pin No. 11<br />GPIO3 – Pin No. 12<br />GPIO4 – Pin No. 13<br />GPIO5 – Pin No. 14<br />GPIO6 – Pin No. 15<br />GPIO7 – Pin No. 16<br />GPIO8 – Pin No. 39<br />GPIO9 – Pin No. 40<br />GPIO10 – Pin No. 48<br />GPIO11 – Pin No. 58<br />GPIO12 – Pin No. 59<br />GPIO13 – Pin No. 60<br />GPIO14 – Pin No. 61<br />GPIO15 – Pin No. 62<br/>GPIO16 – Pin No. 63<br/>GPIO17 – Pin No. 69<br/>GPIO18 – Pin No. 70<br/>GPIO19 – Pin No. 1<br/>GPIO20 – Pin No. 3<br/>GPIO21 – Pin No. 49<br/>GPIO22 – Pin No. 50<br/>GPIO23 – Pin No. 51<br/>GPIO24 – Pin No. 52<br/>GPIO25 – Pin No. 53<br/>GPIO26 – Pin No. 54<br/>GPIO27 – Pin No. 55<br/>GPIO28 – Pin No. 56<br/>GPIO29 – Pin No. 57<br />GPIO30 – Pin No. 2<br />GPIO31 – Pin No. 66<br />GPIO32 – Pin No. 65<br />GPIO33 – Pin No. 67<br />GPIO34 – Pin No. 64<br />GPIO35 – Pin No. 4<br />GPIO36 – Pin No. 31<br />GPIO37 – Pin No. 32<br />GPIO38 – Pin No. 33<br />GPIO39 – Pin No. 34<br />GPIO40 – Pin No. 71<br />GPIO41 – Pin No. 72<br />GPIO42 – Pin No. 109<br />GPIO43 – Pin No. 110<br />GPIO44 – Pin No. 112<br />GPIO45 – Pin No. 111<br/>The corresponding pins of EC600U series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 61(cannot be gpio function at the same time as GPIO31)<br />GPIO2 – Pin No. 58(cannot be gpio function at the same time as GPIO32)<br />GPIO3 – Pin No. 34(cannot be gpio function at the same time as GPIO41)<br />GPIO4 – Pin No. 60(cannot be gpio function at the same time as GPIO34)<br />GPIO5 – Pin No. 69(cannot be gpio function at the same time as GPIO35)<br />GPIO6 – Pin No. 70(cannot be gpio function at the same time as GPIO36)<br />GPIO7 – Pin No. 123(cannot be gpio function at the same time as GPIO43)<br />GPIO8 – Pin No. 118<br />GPIO9 – Pin No. 9<br />GPIO10 – Pin No. 1(cannot be gpio function at the same time as GPIO37)<br />GPIO11 – Pin No. 4(cannot be gpio function at the same time as GPIO38)<br />GPIO12 – Pin No. 3(cannot be gpio function at the same time as GPIO39)<br />GPIO13 – Pin No. 2(cannot be gpio function at the same time as GPIO40)<br />GPIO14 – Pin No. 54<br />GPIO15 – Pin No. 57<br/>GPIO16 – Pin No. 56<br/>GPIO17 – Pin No. 12<br/>GPIO18 – Pin No. 33(cannot be gpio function at the same time as GPIO42)<br/>GPIO19 – Pin No. 124(cannot be gpio function at the same time as GPIO44)<br/>GPIO20 – Pin No. 122(cannot be gpio function at the same time as GPIO45)<br/>GPIO21 – Pin No. 121(cannot be gpio function at the same time as GPIO46)<br/>GPIO22 – Pin No. 48<br/>GPIO23 – Pin No. 39<br/>GPIO24 – Pin No. 40<br/>GPIO25 – Pin No. 49<br/>GPIO26 – Pin No. 50<br/>GPIO27 – Pin No. 53<br/>GPIO28 – Pin No. 52<br/>GPIO29 – Pin No. 51<br/>GPIO30 – Pin No. 59(cannot be gpio function at the same time as GPIO33)<br/>GPIO31 – Pin No. 66(cannot be gpio function at the same time as GPIO1)<br/>GPIO32 – Pin No. 63(cannot be gpio function at the same time as GPIO2)<br/>GPIO33 – Pin No. 67(cannot be gpio function at the same time as GPIO30)<br/>GPIO34 – Pin No. 65(cannot be gpio function at the same time as GPIO4)<br/>GPIO35 – Pin No. 137(cannot be gpio function at the same time as GPIO5)<br/>GPIO36 – Pin No. 62(cannot be gpio function at the same time as GPIO6)<br/>GPIO37 – Pin No. 98(cannot be gpio function at the same time as GPIO10)<br/>GPIO38 – Pin No. 95(cannot be gpio function at the same time as GPIO11)<br/>GPIO39 – Pin No. 119(cannot be gpio function at the same time as GPIO12)<br/>GPIO40 – Pin No. 100(cannot be gpio function at the same time as GPIO13)<br/>GPIO41 – Pin No. 120(cannot be gpio function at the same time as GPIO3)<br/>GPIO42 – Pin No. 16(cannot be gpio function at the same time as GPIO18)<br/>GPIO43 – Pin No. 10(cannot be gpio function at the same time as GPIO7)<br/>GPIO44 – Pin No. 14(cannot be gpio function at the same time as GPIO19)<br/>GPIO45 – Pin No. 15(cannot be gpio function at the same time as GPIO20)<br/>GPIO46 – Pin No. 13(cannot be gpio function at the same time as GPIO21)<br/>The corresponding pins of EC200U series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 27(cannot be gpio function at the same time as GPIO31)<br />GPIO2 – Pin No. 26(cannot be gpio function at the same time as GPIO32)<br />GPIO3 – Pin No. 24(cannot be gpio function at the same time as GPIO33)<br />GPIO4 – Pin No. 25(cannot be gpio function at the same time as GPIO34)<br />GPIO5 – Pin No. 13(cannot be gpio function at the same time as GPIO17)<br />GPIO6 – Pin No. 135(cannot be gpio function at the same time as GPIO36)<br />GPIO7 – Pin No. 136(cannot be gpio function at the same time as GPIO44)<br />GPIO8 – Pin No. 133<br />GPIO9 – Pin No. 3(cannot be gpio function at the same time as GPIO37)<br />GPIO10 – Pin No. 40(cannot be gpio function at the same time as GPIO38)<br />GPIO11 – Pin No. 37(cannot be gpio function at the same time as GPIO39)<br />GPIO12 – Pin No. 38(cannot be gpio function at the same time as GPIO40)<br />GPIO13 – Pin No. 39(cannot be gpio function at the same time as GPIO41)<br />GPIO14 – Pin No. 5<br />GPIO15 – Pin No. 141<br/>GPIO16 – Pin No. 142<br/>GPIO17 – Pin No. 121(cannot be gpio function at the same time as GPIO5)<br/>GPIO18 – Pin No. 65(cannot be gpio function at the same time as GPIO42)<br/>GPIO19 – Pin No. 64(cannot be gpio function at the same time as GPIO43)<br/>GPIO20 – Pin No. 139(cannot be gpio function at the same time as GPIO45)<br/>GPIO21 – Pin No. 126(cannot be gpio function at the same time as GPIO46)<br/>GPIO22 – Pin No. 127(cannot be gpio function at the same time as GPIO47)<br/>GPIO23 – Pin No. 33<br/>GPIO24 – Pin No. 31<br/>GPIO25 – Pin No. 30<br/>GPIO26 – Pin No. 29<br/>GPIO27 – Pin No. 28<br/>GPIO28 – Pin No. 1<br/>GPIO29 – Pin No. 2<br/>GPIO30 – Pin No. 4<br/>GPIO31 – Pin No. 125(cannot be gpio function at the same time as GPIO1)<br/>GPIO32 – Pin No. 124(cannot be gpio function at the same time as GPIO2)<br/>GPIO33 – Pin No. 123(cannot be gpio function at the same time as GPIO3)<br/>GPIO34 – Pin No. 122(cannot be gpio function at the same time as GPIO4)<br/>GPIO35 – Pin No. 42<br/>GPIO36 – Pin No. 119(cannot be gpio function at the same time as GPIO6)<br/>GPIO37 – Pin No. 134(cannot be gpio function at the same time as GPIO9)<br/>GPIO38 – Pin No. 132(cannot be gpio function at the same time as GPIO10)<br/>GPIO39 – Pin No. 131(cannot be gpio function at the same time as GPIO11)<br/>GPIO40 – Pin No. 130(cannot be gpio function at the same time as GPIO12)<br/>GPIO41 – Pin No. 129(cannot be gpio function at the same time as GPIO13)<br/>GPIO42 – Pin No. 61(cannot be gpio function at the same time as GPIO18)<br/>GPIO43 – Pin No. 62(cannot be gpio function at the same time as GPIO19)<br/>GPIO44 – Pin No. 63(cannot be gpio function at the same time as GPIO7)<br/>GPIO45 – Pin No. 66(cannot be gpio function at the same time as GPIO20)<br/>GPIO46 – Pin No. 6(cannot be gpio function at the same time as GPIO21)<br/>GPIO47 – Pin No. 23(cannot be gpio function at the same time as GPIO22)<br/>The corresponding pins of EC200A series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 27<br />GPIO2 – Pin No. 26<br />GPIO3 – Pin No.24<br />GPIO4 – Pin No.25<br />GPIO5 – Pin No.5<br />GPIO6 – Pin No.135<br />GPIO7 – Pin No.136<br />GPIO9 – Pin No. 3<br />GPIO10 – Pin No. 40<br />GPIO11 – Pin No. 37<br />GPIO12 – Pin No. 38<br />GPIO13 – Pin No. 39<br />GPIO18 – Pin No. 65<br />GPIO19 – Pin No. 64<br />GPIO20 – Pin No. 139<br />GPIO22 – Pin No. 127<br />GPIO28 – Pin No. 1<br />GPIO29 – Pin No. 2<br />GPIO30 – Pin No. 4<br />GPIO35 – Pin No. 42<br />GPIO36 – Pin No. 119<br />GPIO43 – Pin No. 62<br />GPIO44 – Pin No. 63<br />GPIO45 – Pin No. 66<br />GPIO46 – Pin No. 6<br />GPIO47 – Pin No. 23<br/>The corresponding pins of EC800NCN series module are as follows (pin number is external pin number): <br />GPIO1 – Pin No. 30<br />GPIO2 – Pin No. 31<br />GPIO3 – Pin No. 32<br />GPIO4 – Pin No. 33<br />GPIO5 – Pin No. 49<br />GPIO6 – Pin No. 50<br />GPIO7 – Pin No. 51<br />GPIO8 – Pin No. 52<br />GPIO9 – Pin No. 53<br />GPIO10 – Pin No. 54<br />GPIO11 – Pin No. 55<br />GPIO12 – Pin No. 56<br />GPIO13 – Pin No. 57<br />GPIO14 – Pin No. 58<br />GPIO15 – Pin No. 80<br/>GPIO16 – Pin No. 81<br/>GPIO17 – Pin No. 76<br/>GPIO18 – Pin No. 77<br/>GPIO19 – Pin No. 82<br/>GPIO20 – Pin No. 83<br/>GPIO21 – Pin No. 86<br/>GPIO22 – Pin No. 87<br/>GPIO23 – Pin No. 66<br/>GPIO24 – Pin No. 67<br/>GPIO25 – Pin No. 17<br/>GPIO26 – Pin No. 18<br/>GPIO27 – Pin No. 19<br/>GPIO28 – Pin No. 20<br/>GPIO29 – Pin No. 21<br />GPIO30 – Pin No. 22<br />GPIO31 – Pin No. 23<br />GPIO32 – Pin No. 28<br />GPIO33 – Pin No. 29<br />GPIO34 – Pin No. 38<br />GPIO35 – Pin No. 39<br />GPIO36 – Pin No. 16<br />GPIO37 – Pin No. 78<br />The pin correspondence of BC25PA platform is as follows (pin numbers are external pin numbers):<br />GPIO1 – Pin No. 3<br />GPIO2 – Pin No. 4<br />GPIO3 – Pin No. 5<br />GPIO4 – Pin No. 6<br />GPIO5 – Pin No. 16<br />GPIO6 – Pin No. 20<br />GPIO7 – Pin No. 21<br />GPIO8 – Pin No. 22<br />GPIO9 – Pin No. 23<br />GPIO10 – Pin No. 25<br />GPIO11 – Pin No. 28<br />GPIO12 – Pin No. 29<br />GPIO13 – Pin No. 30<br />GPIO14 – Pin No. 31<br />GPIO15 – Pin No. 32<br/>GPIO16 – Pin No. 33<br/>GPIO17 – Pin No. 2<br/>GPIO18 – Pin No. 8<br/>The pin correspondence of BG95M3 platform is as follows (pin numbers are external pin numbers):<br />GPIO1 – Pin No. 4<br />GPIO2 – Pin No. 5<br />GPIO3 – Pin No. 6<br />GPIO4 – Pin No. 7<br />GPIO5 – Pin No. 18<br />GPIO6 – Pin No. 19<br />GPIO7 – Pin No. 22<br />GPIO8 – Pin No. 23<br />GPIO9 – Pin No. 25<br />GPIO10 – Pin No. 26<br />GPIO11 – Pin No. 27<br />GPIO12 – Pin No. 28<br />GPIO13 – Pin No. 40<br />GPIO14 – Pin No. 41<br />GPIO15 – Pin No. 64<br/>GPIO16 – Pin No. 65<br/>GPIO17 – Pin No. 66<br />GPIO18 – Pin No. 85<br />GPIO19 – Pin No. 86<br />GPIO20 – Pin No. 87<br />GPIO21 – Pin No. 88<br />The pin correspondence of EG915U platform is as follows (pin numbers are external pin numbers):<br />GPIO1 – Pin No.4(cannot be gpio function at the same time as GPIO41)<br />GPIO2 – Pin No.5(cannot be gpio function at the same time as GPIO36)<br />GPIO3 – Pin No.6(cannot be gpio function at the same time as GPIO35)<br />GPIO4 – Pin No.7(cannot be gpio function at the same time as GPIO24)<br />GPIO5 – Pin No.18<br />GPIO6 – Pin No.19<br />GPIO7 – Pin No.1(cannot be gpio function at the same time as GPIO37)<br />GPIO8 – Pin No.38<br />GPIO9 – Pin No.25<br />GPIO10 – Pin No.26<br />GPIO11 – Pin No.27(cannot be gpio function at the same time as GPIO32)<br />GPIO12 – Pin No.28(cannot be gpio function at the same time as GPIO31)<br />GPIO13 – Pin No.40<br />GPIO14 – Pin No.41<br />GPIO15 – Pin No.64<br/>GPIO16 – Pin No.20(cannot be gpio function at the same time as GPIO30)<br/>GPIO17 – Pin No.21<br/>GPIO18 – Pin No.85<br/>GPIO19 – Pin No.86<br/>GPIO20 – Pin No.30<br/>GPIO21 – Pin No.88<br/>GPIO22 – Pin No.36(cannot be gpio function at the same time as GPIO40)<br/>GPIO23 – Pin No.37(cannot be gpio function at the same time as GPIO38)<br/>GPIO24 – Pin No.16(cannot be gpio function at the same time as GPIO4)<br/>GPIO25 – Pin No.39<br/>GPIO26 – Pin No.42(cannot be gpio function at the same time as GPIO27)<br/>GPIO27 – Pin No.78(cannot be gpio function at the same time as GPIO26)<br/>GPIO28 – Pin No.83(cannot be gpio function at the same time as GPIO33)<br/>GPIO29 – Pin No.84<br />GPIO30 – Pin No.92(cannot be gpio function at the same time as GPIO16)<br />GPIO31 – Pin No.95(cannot be gpio function at the same time as GPIO12)<br />GPIO32 – Pin No.97(cannot be gpio function at the same time as GPIO11)<br />GPIO33 – Pin No.98(cannot be gpio function at the same time as GPIO28)<br />GPIO34 – Pin No.104<br />GPIO35 – Pin No.105(cannot be gpio function at the same time as GPIO3)<br />GPIO36 – Pin No.106(cannot be gpio function at the same time as GPIO2)<br />GPIO37 – Pin No.108(cannot be gpio function at the same time as GPIO4)<br />GPIO38 – Pin No.111(cannot be gpio function at the same time as GPIO23)<br />GPIO39 – Pin No.114<br />GPIO40 – Pin No.115(cannot be gpio function at the same time as GPIO22)<br />GPIO41 – Pin No.116(cannot be gpio function at the same time as GPIO1)<br />The corresponding pins of EC800M series module are as follows (pin number is external pin number)：<br />GPIO1 – Pin No. 30<br />GPIO2 – Pin No. 31<br />GPIO3 – Pin No. 32<br />GPIO4 – Pin No. 33<br />GPIO5 – Pin No. 49<br />GPIO6 – Pin No. 50<br />GPIO7 – Pin No. 51<br />GPIO8 – Pin No. 52<br />GPIO9 – Pin No. 53<br />GPIO10 – Pin No. 54<br />GPIO11 – Pin No. 55<br />GPIO12 – Pin No. 56<br />GPIO13 – Pin No. 57<br />GPIO14 – Pin No. 58<br />GPIO15 – Pin No. 80<br/>GPIO16 – Pin No. 81<br/>GPIO17 – Pin No. 76<br/>GPIO18 – Pin No. 77<br/>GPIO19 – Pin No. 82<br/>GPIO20 – Pin No. 83<br/>GPIO21 – Pin No. 86<br/>GPIO22 – Pin No. 87<br/>GPIO23 – Pin No. 66<br/>GPIO24 – Pin No. 67<br/>GPIO25 – Pin No. 17<br/>GPIO26 – Pin No. 18<br/>GPIO27 – Pin No. 19<br/>GPIO28 – Pin No. 20<br/>GPIO29 – Pin No. 21<br />GPIO30 – Pin No. 22<br />GPIO31 – Pin No. 23<br />GPIO32 – Pin No. 28<br />GPIO33 – Pin No. 29<br />GPIO34 – Pin No. 38<br />GPIO35 – Pin No. 39<br />GPIO36 – Pin No. 16<br />GPIO37 – Pin No. 78<br />GPIO38 – Pin No. 68<br />GPIO39 – Pin No. 39<br />GPIO40 – Pin No. 74<br />GPIO41 – Pin No. 75<br />GPIO42 – Pin No. 84<br />GPIO43 – Pin No. 85<br />GPIO44 – Pin No. 25<br />The corresponding pins of EG912N series module are as follows (pin number is external pin number)：<br />GPIO1 – Pin No.4<br />GPIO2 – Pin No.5<br />GPIO3 – Pin No.6<br />GPIO4 – Pin No.7<br />GPIO5 – Pin No.18<br />GPIO6 – Pin No.19<br />GPIO7 – Pin No.1<br />GPIO8 – Pin No.16<br />GPIO9 – Pin No.25<br />GPIO10 – Pin No.26<br />GPIO11 – Pin No.27<br />GPIO12 – Pin No.28<br />GPIO13 – Pin No.40<br/>GPIO14 – Pin No.41<br/>GPIO15 – Pin No.64<br/>GPIO16 – Pin No.20<br/>GPIO17 – Pin No.21<br/>GPIO18 – Pin No.30<br/>GPIO19 – Pin No.34<br/>GPIO20 – Pin No.35<br/>GPIO21 – Pin No.36<br/>GPIO22 – Pin No.37<br/>GPIO23 – Pin No.38<br/>GPIO24 – Pin No.39<br/>GPIO25 – Pin No.42<br />GPIO26 – Pin No.78<br />GPIO27 – Pin No.83<br />GPIO28 – Pin No.92<br />GPIO29 – Pin No.95<br />GPIO30 – Pin No.96<br />GPIO31 – Pin No.97<br />GPIO32 – Pin No.98<br />GPIO33 – Pin No.103<br />GPIO34 – Pin No.104<br />GPIO35 – Pin No.105<br />GPIO36 – Pin No.106<br />GPIO37 – Pin No.107<br />GPIO38 – Pin No.114<br />GPIO39 – Pin No.115<br />GPIO40 – Pin No.116 |
 | direction | int  | IN – input mode; OUT – output mode                           |
 | pullMode  | int  | PULL_DISABLE – floating mode<br />PULL_PU – pull-up mode<br />PULL_PD – pull-down mode |
 | level     | int  | 0 - Set the pin to low level; 1- Set the pin to high level   |
@@ -5500,6 +5923,7 @@ Function: UART serial data transmission
 | UART.UART1 | UART1       |
 | UART.UART2 | UART2       |
 | UART.UART3 | UART3       |
+| UART.UART4 | UART4       |
 
 
 
@@ -5511,7 +5935,7 @@ Function: UART serial data transmission
 
 | Parameter | Type | Description                                                  |
 | :-------- | :--- | ------------------------------------------------------------ |
-| UARTn     | int  | Functions of UARTn are as follows: <br />UART0 - DEBUG PORT<br />UART1 – BT PORT<br />UART2 – MAIN PORT<br />UART3 – USB CDC PORT(BG95M3 platform not supported) |
+| UARTn     | int  | Functions of UARTn are as follows: <br />UART0 - DEBUG PORT<br />UART1 – BT PORT<br />UART2 – MAIN PORT<br />UART3 – USB CDC PORT(BG95M3 platform not supported)<br />UART4 – STDOUT PORT(only supports EC200U/EC600U/EG915U) |
 | buadrate  | int  | Baud rate, common baud rates are supported, such as 4800, 9600, 19200, 38400, 57600, 115200, 230400, etc. |
 | databits  | int  | Data bit (5–8)                                               |
 | parity    | int  | Parity check (0 – NONE，1 – EVEN，2 - ODD)                   |
@@ -5522,15 +5946,18 @@ Function: UART serial data transmission
 
 | platform      |                                                              |
 | ------------- | :----------------------------------------------------------- |
-| EC600U        | uart1:<br />TX: Pin number 124<br />RX: Pin number 123<br />uart2:<br />TX:Pin number 32<br />RX:Pin number 31 |
-| EC200U        | uart1:<br />TX: Pin number 138<br />RX: Pin number 137<br />uart2:<br />TX:Pin number 67<br />RX:Pin number 68 |
+| EC600U        | uart1:<br />TX: Pin number 124<br />RX: Pin number 123<br />uart2:<br />TX:Pin number 32<br />RX:Pin number 31<br />uart4:<br />TX:Pin number 103<br />RX:Pin number 104 |
+| EC200U        | uart1:<br />TX: Pin number 138<br />RX: Pin number 137<br />uart2:<br />TX:Pin number 67<br />RX:Pin number 68<br />uart4:<br />TX:Pin number 82<br />RX:Pin number 81 |
 | EC200A        | uart1:<br />TX: Pin number 63<br />RX: Pin number 66<br />uart2:<br />TX: Pin number 67<br />RX: Pin number 68 |
 | EC600S/EC600N | uart0:<br />TX: Pin number 71<br />RX: Pin number 72<br />uart1:<br />TX: Pin number 3<br />RX: Pin number 2<br />uart2:<br />TX:Pin number 32<br />RX:Pin number 31 |
 | EC100Y        | uart0:<br />TX: Pin number 21<br />RX:Pin number 20<br />uart1:<br />TX: Pin number 27<br />RX: Pin number 28<br />uart2:<br />TX:Pin number 50<br />RX:Pin number 49 |
 | EC800N        | uart0:<br />TX: Pin number 39<br />RX: Pin number 38<br />uart1:<br />TX: Pin number 50<br />RX: Pin number 51<br />uart2:<br />TX:Pin number 18<br />RX:Pin number 17 |
 | BC25PA        | uart1:<br />TX: Pin number 29<br />RX: Pin number 28         |
 | BG95M3        | uart0:<br />TX: Pin number 23<br />RX: Pin number 22<br />uart1:<br />TX:Pin number 27<br />RX:Pin number 28<br />uart2:<br />TX: Pin number 64<br />RX: Pin number 65 |
-| EC600M        | uart1:<br />TX: Pin number 3<br />RX: Pin number 2<br />uart2:<br />TX:Pin number 32<br />RX:Pin number 31 |
+| EC600M        | uart0:<br />TX: Pin number 71<br />RX: Pin number 72<br />uart1(Turn off flow control):<br />TX: Pin number 3<br />RX: Pin number 2<br />uart1(Turn on flow control):<br />TX: Pin number 33<br />RX: Pin number 34<br />uart2:<br />TX:Pin number 32<br />RX:Pin number 31 |
+| EG915U        | uart1:<br />TX: Pin number 27<br />RX: Pin number 28<br />uart2:<br />TX:Pin number 35<br />RX:Pin number 34<br />uart4:<br />TX:Pin number 19<br />RX:Pin number 18 |
+| EC800M        | uart0:<br />TX: Pin number 39<br />RX: Pin number 38<br />uart1(Turn off flow control):<br />TX: Pin number 50<br />RX: Pin number 51<br />uart1(Turn on flow control):<br />TX: Pin number 22<br />RX: Pin number 23<br />Note: EC800MCN_GA uart1 is not available<br />uart2:<br />TX:Pin number 18<br />RX:Pin number 17 |
+| EG912N        | uart0:<br />TX: Pin number 23<br />RX: Pin number 22<br />uart1(Turn off flow control):<br />TX: Pin number 27<br />RX: Pin number 28<br />uart1(Turn on flow control):<br />TX: Pin number 36<br />RX: Pin number 37<br />uart2:<br />TX:Pin number 34<br />RX:Pin number 35 |
 
 * Example
 
@@ -5927,14 +6354,14 @@ Function: The module configures I/O pins to interrupt when an external event occ
 | GPIOn     | int  | The GPIO Pin number to control refer to the Pin module definition( BG95M3 platform besides)<br />The pin correspondence of BG95M3 platform is as follows (pin numbers are external pin numbers):<br />GPIO2 – Pin number 5<br />GPIO3 – Pin number 6<br />GPIO6 – Pin number 19<br />GPIO7 – Pin number 22<br />GPIO8 – Pin number 23<br />GPIO9 – Pin number 25<br />GPIO11 – Pin number 27<br />GPIO12 – Pin number 28<br />GPIO14 – Pin number 41<br />GPIO16 – Pin number 65<br/>GPIO17 – Pin number 66<br />GPIO18 – Pin number 85<br />GPIO19 – Pin number 86<br />GPIO20 – Pin number 87<br />GPIO21 – Pin number 88 |
 | mode      | int  | Set the trigger method<br /> IRQ_RISING – Rising edge trigger<br /> IRQ_FALLING – Falling edge trigger<br /> IRQ_RISING_FALLING – Rising and falling edge trigger |
 | pull      | int  | PULL_DISABLE – Floating mode<br />PULL_PU – Pull-up mode<br />PULL_PD  – Pull-down mode |
-| callback  | int  | Interrupt trigger callback function                          |
+| callback  | int  | Interrupt trigger callback function<br />The return parameter is a tuple of length 2<br />Args[0]: GPIO number<br />Args[1]: trigger edge (0: rising edge 1: falling edge) |
 
 * Example
 
 ```python
 >>> from machine import ExtInt
 >>> def fun(args):
-        print('### interrupt  {} ###'.format(args))
+        print('### interrupt  {} ###'.format(args)) #Args[0]: GPIO number args[1]: rising edge or falling edge
 >>> extint = ExtInt(ExtInt.GPIO1, ExtInt.IRQ_FALLING, ExtInt.PULL_PU, fun)
 ```
 
@@ -6034,7 +6461,19 @@ Number of times to clear the trigger interrupt.
   * 0: successful
   * Other: failed
 
+###### Get Pin Level
 
+> **extint.read_level()**
+
+It gets pin level.
+
+* Parameter
+
+  * None
+
+* Return Value
+
+  * Pin level. 0 indicates low level; 1 indicates high level
 
 ##### RTC
 
@@ -6094,7 +6533,7 @@ It sets and gets RTC time. When there is no parameter, it gets the time, it sets
 
 Support platform ec600u/ec200u/ec600n/ec800n/bc25
 
-rtc.set_alarm(data_e)
+> **rtc.set_alarm(data_e)**
 
 Set the RTC expiration time. When the expiration time is reached, the registered callback function will be called
 
@@ -6196,8 +6635,8 @@ Class function: A two-wire protocol used for communication between devices.
 
 | Constant          |                             | Applicable Platform         |
 | ----------------- | --------------------------- | --------------------------- |
-| I2C.I2C0          | I2C channel index number: 0 | EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M |
-| I2C.I2C1          | I2C channel index number: 1 | EC600S/EC600N/EC600U/EC200U/BC25PA/BG95M3/EC600M |
+| I2C.I2C0          | I2C channel index number: 0 | EC100Y/EC600U/EC200U/EC200A/BC25PA/EC800N/BG95M3/EC600M/EG915U/EC800M |
+| I2C.I2C1          | I2C channel index number: 1 | EC600S/EC600N/EC600U/EC200U/BC25PA/BG95M3/EC600M/EG915U/EC800M/EG912N |
 | I2C.I2C2 | I2C channel index number: 2 | BG95M3/EC600M |
 | I2C.STANDARD_MODE | Standard mode               |                             |
 | I2C.FAST_MODE     | Fast mode                   |                             |
@@ -6230,6 +6669,9 @@ Class function: A two-wire protocol used for communication between devices.
 | EC800N        | I2C0:<br />SCL:Pin number 67<br />SDA:Pin number 66          |
 | BG95M3        | I2C0:<br />SCL: Pin number 18<br />SDA: Pin number 19<br />I2C1:<br />SCL:Pin number 40<br />SDA:Pin number 41<br />I2C2:<br />SCL:Pin number 26<br />SDA:Pin number 25 |
 | EC600M        | I2C0:<br />SCL: Pin number 9<br />SDA: Pin number 64<br />I2C1:<br />SCL:Pin number 57<br />SDA:Pin number 56<br />I2C2:<br />SCL:Pin number 67<br />SDA:Pin number 65 |
+| EG915U        | I2C0:<br />SCL: Pin number 103<br />SDA: Pin number 114<br />I2C1:<br />SCL:Pin number 40<br />SDA:Pin number 41 |
+| EC800M        | I2C0:<br />SCL: Pin number 67<br />SDA: Pin number 66<br />I2C1:<br />SCL:Pin number 68<br />SDA:Pin number 69 |
+| EG912N        | I2C1:<br />SCL:Pin number 40<br />SDA:Pin number 41          |
 
 - Exmaple
 
@@ -6316,9 +6758,9 @@ i2c_log = log.getLogger("I2C")
 if __name__ == '__main__':
     I2C_SLAVE_ADDR = 0x1B  # i2c device addrress
     # i2c register address, passed in as buff, take the first value and calculate the length of a value. 
-	WHO_AM_I = bytearray({0x02, 0})
+    WHO_AM_I = bytearray([0x02, 0])
 
-    data = bytearray({0x12, 0})   # Enter the corresponding command 
+    data = bytearray([0x12, 0])   # Enter the corresponding command 
     i2c_obj = I2C(I2C.I2C0, I2C.STANDARD_MODE)  # Return i2c object 
     i2c_obj.write(I2C_SLAVE_ADDR, WHO_AM_I, 1, data, 2) # Write data
 
@@ -6538,7 +6980,7 @@ Class function: Serial peripheral interface bus protocol.
 | --------- | ---- | ------------------------------------------------------------ |
 | port      | int  | Channel selection[0,1]                                       |
 | mode      | int  | SPI working mode (ususally mode 0): <br />Clock polarity CPOL: When SPI is idle, the level of the clock signal SCLK (0: Low level when idle; 1: High level when idle)<br /> 0 : CPOL=0, CPHA=0<br /> 1 : CPOL=0, CPHA=1<br /> 2:  CPOL=1, CPHA=0<br /> 3:  CPOL=1, CPHA=1 |
-| clk       | int  | volume_up clock frequency<br />EC600NCN/EC600SCN/EC800NCN/BG95M3/EC600M:<br /> 0 : 812.5kHz<br /> 1 : 1.625MHz<br /> 2 : 3.25MHz<br /> 3 : 6.5MHz<br /> 4 : 13MHz<br /> 5 :  26MHz<br /> 6：52MHz<br />EC600UCN/EC200UCN:<br />0 : 781.25KHz<br />1 : 1.5625MHz<br />2 : 3.125MHz<br />3 : 5MHz<br />4 : 6.25MHz<br />5 : 10MHz<br />6 : 12.5MHz<br />7 : 20MHz<br />8 : 25MHz<br />9 : 33.33MHz<br />BC25PA：<br />0 ： 5MHz<br />X : XMHz  (X in [1,39]) |
+| clk       | int  | volume_up clock frequency<br />EC600NCN/EC600SCN/EC800NCN/BG95M3/EC600M/EC800M/EG912N:<br /> 0 : 812.5kHz<br /> 1 : 1.625MHz<br /> 2 : 3.25MHz<br /> 3 : 6.5MHz<br /> 4 : 13MHz<br /> 5 :  26MHz<br /> 6：52MHz<br />EC600UCN/EC200UCN/EG915U:<br />0 : 781.25KHz<br />1 : 1.5625MHz<br />2 : 3.125MHz<br />3 : 5MHz<br />4 : 6.25MHz<br />5 : 10MHz<br />6 : 12.5MHz<br />7 : 20MHz<br />8 : 25MHz<br />9 : 33.33MHz<br />BC25PA：<br />0 ： 5MHz<br />X : XMHz  (X in [1,39]) |
 
 - Pin Description
 
@@ -6552,6 +6994,9 @@ Class function: Serial peripheral interface bus protocol.
 | BC25PA        | port0:<br />CS:Pin number 6<br />CLK:Pin number 5<br />MOSI:Pin number 4<br />MISO:Pin number 3 |
 | BG95M3        | port0:<br />CS:Pin number 25<br />CLK:Pin number 26<br />MOSI:Pin number 27<br />MISO:Pin number 28<br />port1:<br />CS:Pin number 41<br />CLK:Pin number 40<br />MOSI:Pin number 64<br />MISO:Pin number 65 |
 | EC600M        | port0:<br />CS:Pin number 58<br />CLK:Pin number 61<br />MOSI:Pin number 59<br />MISO:Pin number 60<br />port1:<br />CS:Pin number 4<br />CLK:Pin number 1<br />MOSI:Pin number 3<br />MISO:Pin number 2 |
+| EG915U        | port0:<br />CS:Pin number 25<br />CLK:Pin number 26<br />MOSI:Pin number 64<br />MISO:Pin number 88 |
+| EC800M        | port0:<br />CS:Pin number 31<br />CLK:Pin number 30<br />MOSI:Pin number 32<br />MISO:Pin number 33<br />port1:<br />CS:Pin number 52<br />CLK:Pin number 53<br />MOSI:Pin number 50<br />MISO:Pin number 51 |
+| EG912N        | port0:<br />CS:Pin number 25<br />CLK:Pin number 26<br />MOSI:Pin number 27<br />MISO:Pin number 28<br />port1:<br />CS:Pin number 5<br />CLK:Pin number 4<br />MOSI:Pin number 6<br />MISO:Pin number 7 |
 
 * Note:
 
@@ -7105,7 +7550,7 @@ if __name__ == '__main__':
 ```
 ##### KeyPad
 
-Module function: provide matrix keyboard interface and support platform EC600SCN_LB/EC800N_CN_LA/EC600NCN_LC
+Module function: provide matrix keyboard interface and support platform EC600SCN_LB/EC800N_CN_LA/EC600NCN_LC/EC200U_CN_LB/EC600U_CN_LB/EC600M_CN_LA/EC800M_CN_LA/EC800M_CN_GA/EG912N_ENAA
 EC200U supports 4x3 at most and EC600U supports 6x6 at most.
 
 ###### Create keypad object
@@ -7129,6 +7574,19 @@ EC200U supports 4x3 at most and EC600U supports 6x6 at most.
 | EC600S | 5 | 5 |
 | EC200U | 4 | 3 |
 | EC600U | 6 | 6 |
+| EC600M | 5 | 5 |
+| EC800M | 5 | 5 |
+| EG912N | 3 | 3 |
+
+- Pin Description
+
+Note: When only some pins are used, the wiring should be done in  descending order of row and column numbers. For example, when EC600M  uses a 2x2 matrix keyboard, the hardware uses pins 49, 51 and 48, 50.
+
+| Platform | Pin                                                          |
+| -------- | ------------------------------------------------------------ |
+| EC600M   | The row number (output) corresponds to the following pins:<br/>Row No.0 – Pin number 49<br/>Row No.1 – Pin number 51<br/>Row No.2 – Pin number 53<br/>Row No.3 – Pin number 55<br/>Row No.4 – Pin number 56<br/>The column number (input) corresponds to the following pins:<br/>Col No.0 – Pin number 48<br/>Col No.1 – Pin number 50<br/>Col No.2 – Pin number 52<br/>Col No.3 – Pin number 54<br />Col No.4 – Pin number 57 |
+| EC800M   | The row number (output) corresponds to the following pins:<br/>Row No.0 – Pin number 86<br/>Row No.1 – Pin number 76<br/>Row No.2 – Pin number 85<br/>Row No.3 – Pin number 82<br/>Row No.4 – Pin number 74<br/>The column number (input) corresponds to the following pins:<br/>Col No.0 – Pin number 87<br/>Col No.1 – Pin number 77<br/>Col No.2 – Pin number 84<br/>Col No.3 – Pin number 83<br />Col No.4 – Pin number 75 |
+| EG912N   | The row number (output) corresponds to the following pins:<br/>Row No.1 – Pin number 20<br/>Row No.2 – Pin number 16<br/>Row No.3 – Pin number 116<br/>The column number (input) corresponds to the following pins:<br/>Col No.2 – Pin number 105<br/>Col No.3 – Pin number 21<br />Col No.4 – Pin number 1 |
 
 * Example:
 >
@@ -7618,55 +8076,6 @@ It  matches the string of the entire expression.
   * It returns the string of the matched entire expression. 
 
 
-
-##### Match Multiple Strings 
-
-> ​	**match.groups()**
-
-It  matches the string of the entire expression.
-
-- Parameter
-
-  * None
-
-* Return Value
-
-  * It returns a tuple containing all substrings of the matching group. 
-
-
-
-##### Get Start Index 
-
-> ​	**match.start(index)**
-
-It returns the index of the starting original string of the matched substring group. 
-
-- Parameter
-
-| Parameter | Type | Description                                                  |
-| --------- | ---- | ------------------------------------------------------------ |
-| index     | int  | Index defaults to the entire group, otherwise a group is selected. |
-
-* Return Value
-
-  * It returns the index of the starting original string of the matched substring group. 
-
-##### Get End Index 
-
-> ​	**match.end(index)**
-
-It returns the index of the ending original string of the matched substring group. 
-
-- Parameter
-
-| Parameter | Type | Description                                                  |
-| --------- | ---- | ------------------------------------------------------------ |
-| index     | int  | Index defaults to the entire group, otherwise a group is selected. |
-
-* Return Value
-
-  * It returns the index of the ending original string of the matched substring group. 
-
 ##### Example
 
 ```python
@@ -7685,7 +8094,7 @@ print(r.group(0))
 
 ####  wifiScan
 
-Note: The BC25PA platform does not support this module function.
+Note: wifiscan supports the platforms: 1603/1606(except:600MCN_LC/800MCN_GC/800MCN_LC)/8910/8850.
 
 ##### Determine whether wifiScan is supported
 
@@ -7793,10 +8202,10 @@ True
 
   | Return Value  | Type         | Description                                                  |
   | ------------- | ------------ | ------------------------------------------------------------ |
-  | timeout       | Integer type | This parameter is the timeout of upper layer application. When the application triggers timeout, it actively reports the scanned hot spot information. The application automatically reports the hot spot information if it scans all the hop spots which have been set previously or the underlying layer scan reaches the frequency sweeping timeout before the timeout of the application. Range: 4–255. Unit: second. |
-  | round         | Integer type | This parameter is the scanning rounds of wifi. When reaching the scanning rounds, the scan stops and the scanning results are obtained. Range: 1–3. Unit: round. |
-  | max_bssid_num | Integer type | This parameter determines the maximum number of hot spots to be scanned. If the number of hot spots scanned by the underlying layer reaches the maximum, the scan stops and the scanning results are obtained. Range: 4–30. |
-  | scan_timeout  | Integer type | This parameter is the wifi hot spot scanning timeout of underlying layer. If the underlying layer scan reaches the hot spot scanning timeout set previously,  the scan stops and the scanning results are obtained. Range: 1–255. Unit: second. |
+  | timeout       | Integer type | This parameter is the timeout of upper layer application. When the application triggers timeout, it actively reports the scanned hot spot information. The application automatically reports the hot spot information if it scans all the hop spots which have been set previously or the underlying layer scan reaches the frequency sweeping timeout before the timeout of the application. |
+  | round         | Integer type | This parameter is the scanning rounds of wifi. When reaching the scanning rounds, the scan stops and the scanning results are obtained. |
+  | max_bssid_num | Integer type | This parameter determines the maximum number of hot spots to be scanned. If the number of hot spots scanned by the underlying layer reaches the maximum, the scan stops and the scanning results are obtained. |
+  | scan_timeout  | Integer type | This parameter is the wifi hot spot scanning timeout of underlying layer. If the underlying layer scan reaches the hot spot scanning timeout set previously,  the scan stops and the scanning results are obtained. |
   | priority      | Integer type | This parameter is the priority setting of wifi scanning service. 0 indicates that ps is preferred; 1 indicates that wifi is preferred. When ps is preferred,  the wifi scan is terminated when a data service is initiated. When wifi is preferred, RRC connection is not connected when a data service is initiated. wifi scan runs normally. The RRC connection is only established after the scan completes. |
 
 * Example：
@@ -7820,11 +8229,11 @@ True
 
   | Parameter     | Type         | Description                                                  |
   | ------------- | ------------ | ------------------------------------------------------------ |
-  | timeout       | Integer type | This parameter is the timeout of upper layer application. When the application triggers timeout, it actively reports the scanned hot spot information. The application automatically reports the hot spot information if it scans all the hop spots which have been set previously or the underlying layer scan reaches the frequency sweeping timeout before the timeout of the application. <br>Range:<br/>600S: 4–255; unit: s.<br/>200U/600U: 120–5000; unit: ms. |
-  | round         | Integer type | This parameter is the scanning rounds of wifi. When reaching the scanning rounds, the scan stops and the scanning results are obtained. <br/>Range:<br/>600S: 1–3; unit: round<br/>200U/600U: 1–10; unit: round |
-  | max_bssid_num | Integer type | This parameter determines the maximum number of hot spots to be scanned. If the number of hot spots scanned by the underlying layer reaches the maximum, the scan stops and the scanning results are obtained. <br/>Range:<br/>600S: 4–30<br/>200U/600U: 1–300 |
+  | timeout       | Integer type | This parameter is the timeout of upper layer application. When the application triggers timeout, it actively reports the scanned hot spot information. The application automatically reports the hot spot information if it scans all the hop spots which have been set previously or the underlying layer scan reaches the frequency sweeping timeout before the timeout of the application. <br>Range:<br/>1603/1606 platforms: 4–255; unit: s.<br/>8850/8910 platfroms: 120–5000; unit: ms. |
+  | round         | Integer type | This parameter is the scanning rounds of wifi. When reaching the scanning rounds, the scan stops and the scanning results are obtained. <br/>Range:<br/>1603/1606 platforms: 1–3; unit: round<br/>8850/8910 platforms: 1–10; unit: round |
+  | max_bssid_num | Integer type | This parameter determines the maximum number of hot spots to be scanned. If the number of hot spots scanned by the underlying layer reaches the maximum, the scan stops and the scanning results are obtained. <br/>Range:<br/>1603 platform: 4–30<br/>1606 platform: 4–10<br/>8850/8910 platforms: 1–30 |
   | scan_timeout  | Integer type | This parameter is the wifi hot spot scanning timeout of underlying layer. If the underlying layer scan reaches the hot spot scanning timeout set previously,  the scan stops and the scanning results are obtained. Range: 1–255.  |
-  | priority      | Integer type | This parameter is the priority setting of wifi scanning service. 0 indicates that ps is preferred; 1 indicates that wifi is preferred. When ps is preferred, the wifi scan is terminated when a data service is initiated. When wifi is preferred, RRC connection is not connected when a data service is initiated. wifi scan runs normally. The RRC connection is only established after the scan completes. 200U or 600U platforms do not support this parameter. You can set this parameter to 0. |
+  | priority      | Integer type | This parameter is the priority setting of wifi scanning service. 0 indicates that ps is preferred; 1 indicates that wifi is preferred. When ps is preferred, the wifi scan is terminated when a data service is initiated. When wifi is preferred, RRC connection is not connected when a data service is initiated. wifi scan runs normally. The RRC connection is only established after the scan completes. 8850/8910 platforms do not support this parameter. You can set this parameter to 0. |
 
 * Return Value：
 
@@ -8319,7 +8728,7 @@ def ble_gatt_set_param():
 
   | Parameter | Type  | Description                                                  |
   | --------- | ----- | ------------------------------------------------------------ |
-  | data      | Array | Advertising data which is no more than 31 octets. Pay attention to the type of this parameter. The advertising data is organized in the program and it needs to be converted through bytearray() before it can be passed in to the API. As shown in below example.<br>Format of advertising data:<br>The content of advertising data. The format is the combination of length+type+data. An advertising data can contain multiple combinations in this format. For example, there are 2 combinations in the example below. The first one is "0x02, 0x01, 0x05". 0x02 means that there are 2 data - 0x01 and 0x05. 0x01 is the type; 0x05 is the specific data. The second one consists of  the length obtained by the length of BLE name plus 1 (1 octet needs to be added as it contains the data that represents type), type 0x09 and the data represented by the corresponding specific encoded value of name.<br>For detailed information of type value, please refer to the following link:<br/>[Generic Access Pfofile](https://btprodspecificationrefs.blob.core.windows.net/assigned-numbers/Assigned Number Types/Generic Access Profile.pdf) |
+  | data      | Array | Advertising data which is no more than 31 octets. Pay attention to the type of this parameter. The advertising data is organized in the program and it needs to be converted through bytearray() before it can be passed in to the API. As shown in below example.<br>Format of advertising data:<br>The content of advertising data. The format is the combination of length+type+data. An advertising data can contain multiple combinations in this format. For example, there are 2 combinations in the example below. The first one is "0x02, 0x01, 0x05". 0x02 means that there are 2 data - 0x01 and 0x05. 0x01 is the type; 0x05 is the specific data. The second one consists of  the length obtained by the length of BLE name plus 1 (1 octet needs to be added as it contains the data that represents type), type 0x09 and the data represented by the corresponding specific encoded value of name.<br>For detailed information of type value, please refer to the following link:<br/>[Generic Access Pfofile](https://btprodspecificationrefs.blob.core.windows.net/assigned-numbers/Assigned%20Number%20Types/Generic%20Access%20Profile.pdf) |
 
 * Return Value
 
@@ -10608,11 +11017,1991 @@ if __name__ == '__main__':
 
 
 
+#### BT - Classic Bluetooth
+
+Features: The module provides the related features of classic Bluetooth, and supports HFP, A2DP, AVRCP and SPP.
+
+##### Initialize Bluetooth 
+
+> **bt.init(user_cb)**
+
+* Feature
+
+This function initializes Bluetooth and registers callback function.
+
+* Parameter
+
+| Parameter | Type     | Description       |
+| --------- | -------- | ----------------- |
+| user_cb   | function | Callback function |
+
+* Return Value
+
+​        0       Successful execution.
+
+​        -1      Failed execution.
+
+Description:
+
+a) The form of the callback function
+
+```python
+def bt_callback(args):
+	event_id = args[0]  # The first parameter is fixed at event_id
+	status = args[1] # The second parameter is fixed at status, indicating whether the execution result of an operation is successful or not.
+	......
+```
+
+b) The description of callback function parameters 
+
+args[0]  is fixed at event_id, args[1]  is fixed at status, 0 indicates success, other values indicate failure. The number of parameters of the callback function is not fixed at 2, but is determined by the first parameter args[0]. The following table lists the number of parameters and descriptions corresponding to different event IDs.
+
+| event_id | Number of Parameters | Description of Parameters                                    |
+| :------: | :------------------: | ------------------------------------------------------------ |
+|    0     |          2           | args[0]: event_id, indicating BT/BLE start event.<br>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure. |
+|    1     |          2           | args[0]: event_id, indicating BT/BLE stop event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure. |
+|    6     |          6           | args[0]: event_id, indicating BT inquiry event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: rssi, indicating the signal strength of the searched device.<br/>args[3]: device_class <br/>args[4]: device_name, string type, indicating the device name.<br/>args[5]: addr, indicating the MAC address of searched Bluetooth device. |
+|    7     |          3           | args[0]: event_id, indicating BT inquiry end event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: end_status, 0 indicates ending the search normally, 8 indicates ending the search forcefully. |
+|    14    |          4           | args[0]: event_id, indicating BT SPP receiving event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: data_len, indicating the length of received data.<br/>args[3]: data, bytearray type, indicating the received data. |
+|    40    |          4           | args[0]: event_id, indicating BT HFP connection event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_connect_status, indicating the connection status of HFP.<br/>               0 - Disconnected<br/>               1 - Connecting<br/>               2 - Connected<br/>               3 - Disconnecting<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    41    |          4           | args[0]: event_id, indicating BT HFP disconnection event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_connect_status, indicating the connection status of HFP.<br/>               0 - Disconnected<br/>               1 - Connecting<br/>               2 - Connected<br/>               3 - Disconnecting<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    42    |          4           | args[0]: event_id, indicating BT HFP call status event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_call_status. Indicates the call status of HFP.<br/>               0 - No calls (held or active)<br/>               1 - Call is present (active or held)<br/> args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    43    |          4           | args[0]: event_id, indicating BT HFP call setup status event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_call_setup_status, indicating the call setup status of HFP.<br/>               0 - No call setup in progress<br/>               1 - Incoming call setup in progress<br/>               2 - Outgoing call setup in dialing state<br/>               3 - Outgoing call setup in alerting state<br/>T args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    44    |          4           | args[0]: event_id, indicating BT HFP network status event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_network_status, indicating the network status of AG.<br/>               0 - Network is unavailable<br/>               1 - Network is normal<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    45    |          4           | args[0]: event_id, indicating BT HFP network signal event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_network_signal, indicating the signal of AG. Range: 0–5.<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    46    |          4           | args[0]: event_id, indicating BT HFP battery level event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_battery_level, indicating the battery level of AG. Range: 0–5.<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    47    |          4           | args[0]: event_id, indicating BT HFP call held status event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_call_held_status, indicating the call held status of HFP.<br/>               0 - No calls held<br/>               1 - Call is placed on hold or active/held calls swapped<br/>               2 - Call on hold, no active call<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    48    |          4           | args[0]: event_id, indicating BT HFP audio status event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_audio_status, indicating the connection status of audio.<br/>                 0 - Audio is disconnected<br/>                 1 - Audio is connecting<br/>                 2 - Audio is connected<br/>                 3 - Audio is disconnecting<br>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    49    |          4           | args[0]: event_id, indicating BT HFP volume type event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_volume_type<br/>               0 - The volume type is speaker<br/>               1 - The volume type is microphone<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    50    |          4           | args[0]: event_id, indicating BT HFP service type event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_service_type, indicating the network service mode of AG.<br/>                 0 - AG is currently in normal network mode<br/>                 1 - AG is currently in roaming mode<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    51    |          4           | args[0]: event_id, indicating the BT HFP ring event, that is, the ring event when there is an incoming call<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: Currently moot, reserved.<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    52    |          4           | args[0]: event_id, indicating the BT HFP codec type event, that is, the codec mode.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: hfp_codec_type, indicating which codec mode is currently used;<br/>                 1 - CVDS with 8 KHz sampling rate<br/>                 2 - mSBC with 16 KHz sampling rate<br/>args[3]: addr, bytearray type, indicating the address of Bluetooth master device. |
+|    61    |          4           | args[0]: event_id, indicating BT SPP connection event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: spp_connect_status, indicating the connection status of SPP.<br/>                 0 - Disconnected<br/>                 1 - Connecting<br/>                 2 - Connected<br/>                 3 - Disconnecting<br/> args[3]: addr, bytearray type, indicating the MAC address of the peer device. |
+|    62    |          4           | args[0]: event_id, indicating BT SPP disconnection event.<br/>args[1]: status, indicating the status of the operation. 0 indicates success, other values indicate failure.<br/>args[2]: spp_connect_status, indicating the connection status of SPP.<br/>               0 - Disconnected<br/>               1 - Connecting<br/>               2 - Connected<br/>               3 - Disconnecting<br/> args[3]: addr, bytearray type, indicating the MAC address of the peer device. |
+
+* Example
+
+```python 
+
+```
+
+
+
+##### Release Bluetooth Resources
+
+> **bt.release()**
+
+* Feature
+
+  This function releases Bluetooth resources.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Enable Bluetooth
+
+> **bt.start()**
+
+* Feature
+
+  This function enables Bluetooth.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+
+
+
+##### Disable Bluetooth
+
+> **bt.stop()**
+
+* Feature
+
+  This function disables Bluetooth.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+
+
+
+##### Get Bluetooth Device Status
+
+> **bt.getStatus()**
+
+* Feature
+
+  This function gets Bluetooth device status.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  | Return Value | Type | Description                          |
+  | ------------ | ---- | ------------------------------------ |
+  | -1           | int  | Fails to get Bluetooth device status |
+  | 0            | int  | Bluetooth device is stopped          |
+  | 1            | int  | Bluetooth device is working          |
+
+  
+
+##### Get Bluebooth Device Address
+
+> **bt.getLocalAddr()**
+
+* Feature
+
+  This function gets Bluetooth device address. This function can only be called after the Bluetooth is initialized and enabled successfully, for example, after receiving an event whose event_id is 0 in the callback function, that is, after *bt.start()* is successfully executed.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  If the execution is successful, it returns a 6-byte Bluetooth device address of bytearray type. If the execution fails, it returns -1.
+
+* Example
+
+```python
+>>> addr = bt.getLocalAddr()
+>>> print(addr)
+b'\xc7\xa13\xf8\xbf\x1a'
+>>> mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+>>> print('mac = [{}]'.format(mac))
+mac = [1a:bf:f8:33:a1:c7]
+```
+
+
+
+##### Set Bluetooth Device Name
+
+> **bt.setLocalName(code, name)**
+
+* Feature
+
+  This function sets Bluetooth device name.
+
+* Parameter
+
+  | Parameter | Type   | Description                                                |
+  | --------- | ------ | ---------------------------------------------------------- |
+  | code      | int    | Coding mode<br/>0 - UTF8<br/>1 - GBK                       |
+  | name      | string | Bluetooth device name, and the maximum length is 22 bytes. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+>>> bt.setLocalName(0, 'QuecPython-BT')
+0
+```
+
+
+
+##### Get Bluetooth Device Name
+
+> **bt.getLocalName()**
+
+* Feature
+
+  This function gets Bluetooth device name.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  If the execution is successful, it returns a tuple with the format (code, name) , including the name encoding mode and the Bluetooth device name. If the execution fails, it returns -1.
+
+* Example
+
+```python
+>>> bt.getLocalName()
+(0, 'QuecPython-BT')
+```
+
+
+
+##### Set Visibility of Bluetooth Device
+
+> **bt.setVisibleMode(mode)**
+
+* Feature
+
+  This function sets the visibility of Bluetooth device, that is, whether the Bluetooth device is visible and connectable when it is scanned and acts as a slave device.</font>
+
+* Parameter
+
+  | Parameter | Type | Description                                                  |
+  | --------- | ---- | ------------------------------------------------------------ |
+  | mode      | int  | 0 - Bluetooth device cannot be searched or connected<br>1 - Bluetooth device can be searched but cannot be connected<br>2 - Bluetooth device cannot be searched but can be connected<br>3 - Bluetooth device can be searched and connected |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+>>> bt.setVisibleMode(3)
+0
+```
+
+
+
+##### Get Visibility of Bluetooth Device
+
+> **bt.getVisibleMode()**
+
+* Feature
+
+  This function sets the visibility of Bluetooth device.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  If the execution is successful, it returns the visibility value of Bluetooth device. If the execution fails, it returns -1.
+
+* Example
+
+```python
+>>> bt.getVisibleMode()
+3
+```
+
+
+
+##### Start Searching for Bluebooth Device
+
+> **bt.startInquiry(mode)**
+
+* Feature
+
+  This function starts searching for nearby Bluetooth devices.
+
+* Parameter
+
+  | Parameter | Type | Description                                                  |
+  | --------- | ---- | ------------------------------------------------------------ |
+  | mode      | int  | Indicates the Bluetooth device type to be queried. Currently it is set to 15 which means searching all Bluetooth devices.<br /> |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+bt.startInquiry(15)
+```
+
+
+
+##### Stop Searching for Bluebooth Device
+
+> **bt.cancelInquiry()**
+
+* Feature
+
+  This function stops searching for Bluetooth devices.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Set Audio Output Channel
+
+> **bt.setChannel(channel)**
+
+* Feature
+
+  This function sets audio output channel when answering a call or playing audio through Bluetooth.
+
+* Parameter
+
+  | Parameter | Type | Description                               |
+  | --------- | ---- | ----------------------------------------- |
+  | channel   | int  | 0 - Handset<br>1 - Headset<br>2 - Speaker |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Initialize HFP 
+
+> **bt.hfpInit()**
+
+* Feature
+
+​        This function initializes HFP.
+
+* Parameter
+
+  None
+
+* Return Value
+
+​        0       Successful execution.
+
+​        -1      Failed execution.
+
+* Example
+
+```python 
+
+```
+
+
+
+##### Release HFP Resources
+
+> **bt.hfpRelease()**
+
+* Feature
+
+  This function releases HFP resources.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Establish HFP Connection 
+
+> **bt.hfpConnect(addr)**
+
+* Feature
+
+  This function establishes an HFP connection and connects to AG.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Disconnect HFP Connection
+
+> **bt.hfpDisonnect(addr)**
+
+* Feature
+
+  This function disconnects the HFP connection.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Set In-call Volume
+
+> **bt.hfpSetVolume(addr, vol)**
+
+* Feature
+
+  This function sets in-call volume through Bluetooth.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+  | vol       | Int   | In-call volume. Range: 1–15.           |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Hang Up the Phone
+
+> **bt.hfpRejectAfterAnswer(addr)**
+
+* Feature
+
+  This function hangs up the connected phone.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Reject the Call
+
+> **bt.hfpRejectCall(addr)**
+
+* Feature
+
+  This function rejects the call.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Answer the Call
+
+> **bt.hfpAnswerCall(addr)**
+
+* Feature
+
+  This function answers the call.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Enable Voice Assistant
+
+> **bt.hfpEnableVR(addr)**
+
+* Feature
+
+  This function enables voice assistant.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Disable Voice Assistant
+
+> **bt.hfpDisableVR(addr)**
+
+* Feature
+
+  This function disables voice assistant.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Control Three-way Calling
+
+> **bt.hfpDisableVR(addr, cmd)**
+
+* Feature
+
+  This function controls three-way calling.
+
+* Parameter
+
+  | Parameter | Type  | Description                            |
+  | --------- | ----- | -------------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address of AG. |
+  | cmd       | int   | Control command                        |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### HFP Demo
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+Description: This demo describes answering calls automatically through HFP.
+Platform: EC600UCN_LB Uranium EVB
+After running this demo, search for the Bluetooth device name and connect it on the phone A , then make a call from phone B to phone A. When phone A starts ringing and vibrating, the Bluetooth device automatically answers the call.
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+from machine import Pin
+
+# If the corresponding playback channel has an external PA, and PA needs to be enabled by the pin, the following steps are required.
+# The GPIO to be used depends on the actual pin used.
+gpio11 = Pin(Pin.GPIO11, Pin.OUT, Pin.PULL_DISABLE, 0)
+gpio11.write(1)
+
+BT_NAME = 'QuecPython-hfp'
+
+BT_EVENT = {
+    'BT_START_STATUS_IND': 0,           # bt/ble start
+    'BT_STOP_STATUS_IND': 1,            # bt/ble stop
+    'BT_HFP_CONNECT_IND': 40,           # bt hfp connected
+    'BT_HFP_DISCONNECT_IND': 41,        # bt hfp disconnected
+    'BT_HFP_CALL_IND': 42,              # bt hfp call state
+    'BT_HFP_CALL_SETUP_IND': 43,        # bt hfp call setup state
+    'BT_HFP_NETWORK_IND': 44,           # bt hfp network state
+    'BT_HFP_NETWORK_SIGNAL_IND': 45,    # bt hfp network signal
+    'BT_HFP_BATTERY_IND': 46,           # bt hfp battery level
+    'BT_HFP_CALLHELD_IND': 47,          # bt hfp callheld state
+    'BT_HFP_AUDIO_IND': 48,             # bt hfp audio state
+    'BT_HFP_VOLUME_IND': 49,            # bt hfp volume type
+    'BT_HFP_NETWORK_TYPE': 50,          # bt hfp network type
+    'BT_HFP_RING_IND': 51,              # bt hfp ring indication
+    'BT_HFP_CODEC_IND': 52,             # bt hfp codec type
+}
+
+HFP_CONN_STATUS = 0
+HFP_CONN_STATUS_DICT = {
+    'HFP_DISCONNECTED': 0,
+    'HFP_CONNECTING': 1,
+    'HFP_CONNECTED': 2,
+    'HFP_DISCONNECTING': 3,
+}
+HFP_CALL_STATUS = 0
+HFP_CALL_STATUS_DICT = {
+    'HFP_NO_CALL_IN_PROGRESS': 0,
+    'HFP_CALL_IN_PROGRESS': 1,
+}
+
+BT_IS_RUN = 0
+
+msg_queue = Queue(30)
+
+
+def get_key_by_value(val, d):
+    for key, value in d.items():
+        if val == value:
+            return key
+    return None
+
+def bt_callback(args):
+    global msg_queue
+    msg_queue.put(args)
+
+def bt_event_proc_task():
+    global msg_queue
+    global BT_IS_RUN
+    global BT_EVENT
+    global HFP_CONN_STATUS
+    global HFP_CONN_STATUS_DICT
+    global HFP_CALL_STATUS
+    global HFP_CALL_STATUS_DICT
+
+    while True:
+        print('wait msg...')
+        msg = msg_queue.get()  # Blocks here when there is no message
+        event_id = msg[0]
+        status = msg[1]
+
+        if event_id == BT_EVENT['BT_START_STATUS_IND']:
+            print('event: BT_START_STATUS_IND')
+            if status == 0:
+                print('BT start successfully.')
+                BT_IS_RUN = 1
+                bt_status = bt.getStatus()
+                if bt_status == 1:
+                    print('BT status is 1, normal status.')
+                else:
+                    print('BT status is {}, abnormal status.'.format(bt_status))
+                    bt.stop()
+                    break
+
+                retval = bt.getLocalName()
+                if retval != -1:
+                    print('The current BT name is : {}'.format(retval[1]))
+                else:
+                    print('Failed to get BT name.')
+                    bt.stop()
+                    break
+
+                print('Set BT name to {}'.format(BT_NAME))
+                retval = bt.setLocalName(0, BT_NAME)
+                if retval != -1:
+                    print('BT name set successfully.')
+                else:
+                    print('BT name set failed.')
+                    bt.stop()
+                    break
+
+                retval = bt.getLocalName()
+                if retval != -1:
+                    print('The new BT name is : {}'.format(retval[1]))
+                else:
+                    print('Failed to get new BT name.')
+                    bt.stop()
+                    break
+
+                # Set the visibility of Bluetooth device to searchable and connectable.
+                retval = bt.setVisibleMode(3)
+                if retval == 0:
+                    mode = bt.getVisibleMode()
+                    if mode == 3:
+                        print('BT visible mode set successfully.')
+                    else:
+                        print('BT visible mode set failed.')
+                        bt.stop()
+                        break
+                else:
+                    print('BT visible mode set failed.')
+                    bt.stop()
+                    break
+            else:
+                print('BT start failed.')
+                bt.stop()
+                break
+        elif event_id == BT_EVENT['BT_STOP_STATUS_IND']:
+            print('event: BT_STOP_STATUS_IND')
+            if status == 0:
+                BT_IS_RUN = 0
+                print('BT stop successfully.')
+            else:
+                print('BT stop failed.')
+            break
+        elif event_id == BT_EVENT['BT_HFP_CONNECT_IND']:
+            HFP_CONN_STATUS = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CONNECT_IND, {}, hfp_conn_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CONN_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP connect failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_DISCONNECT_IND']:
+            HFP_CONN_STATUS = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_DISCONNECT_IND, {}, hfp_conn_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CONN_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP disconnect failed.')
+            bt.stop()
+        elif event_id == BT_EVENT['BT_HFP_CALL_IND']:
+            call_sta = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALL_IND, {}, hfp_call_status:{}, mac:{}'.format(status, get_key_by_value(msg[2], HFP_CALL_STATUS_DICT), mac))
+            if status != 0:
+                print('BT HFP call failed.')
+                bt.stop()
+                continue
+
+            if call_sta == HFP_CALL_STATUS_DICT['HFP_NO_CALL_IN_PROGRESS']:
+                if HFP_CALL_STATUS == HFP_CALL_STATUS_DICT['HFP_CALL_IN_PROGRESS']:
+                    HFP_CALL_STATUS = call_sta
+                    if HFP_CONN_STATUS == HFP_CONN_STATUS_DICT['HFP_CONNECTED']:
+                        print('call ended, ready to disconnect hfp.')
+                        retval = bt.hfpDisconnect(addr)
+                        if retval == 0:
+                            HFP_CONN_STATUS = HFP_CONN_STATUS_DICT['HFP_DISCONNECTING']
+                        else:
+                            print('Failed to disconnect hfp connection.')
+                            bt.stop()
+                            continue
+            else:
+                if HFP_CALL_STATUS == HFP_CALL_STATUS_DICT['HFP_NO_CALL_IN_PROGRESS']:
+                    HFP_CALL_STATUS = call_sta
+                    print('set audio output channel to 2.')
+                    bt.setChannel(2)
+                    print('set volume to 7.')
+                    retval = bt.hfpSetVolume(addr, 7)
+                    if retval != 0:
+                        print('set volume failed.')
+        elif event_id == BT_EVENT['BT_HFP_CALL_SETUP_IND']:
+            call_setup_status = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALL_SETUP_IND, {}, hfp_call_setup_status:{}, mac:{}'.format(status, call_setup_status, mac))
+            if status != 0:
+                print('BT HFP call setup failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_CALLHELD_IND']:
+            callheld_status = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CALLHELD_IND, {}, callheld_status:{}, mac:{}'.format(status, callheld_status, mac))
+            if status != 0:
+                print('BT HFP callheld failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_IND']:
+            network_status = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_IND, {}, network_status:{}, mac:{}'.format(status, network_status, mac))
+            if status != 0:
+                print('BT HFP network status failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_SIGNAL_IND']:
+            network_signal = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_SIGNAL_IND, {}, signal:{}, mac:{}'.format(status, network_signal, mac))
+            if status != 0:
+                print('BT HFP network signal failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_BATTERY_IND']:
+            battery_level = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_BATTERY_IND, {}, battery_level:{}, mac:{}'.format(status, battery_level, mac))
+            if status != 0:
+                print('BT HFP battery level failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_AUDIO_IND']:
+            audio_status = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_AUDIO_IND, {}, audio_status:{}, mac:{}'.format(status, audio_status, mac))
+            if status != 0:
+                print('BT HFP audio failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_VOLUME_IND']:
+            volume_type = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_VOLUME_IND, {}, volume_type:{}, mac:{}'.format(status, volume_type, mac))
+            if status != 0:
+                print('BT HFP volume failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_NETWORK_TYPE']:
+            service_type = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_NETWORK_TYPE, {}, service_type:{}, mac:{}'.format(status, service_type, mac))
+            if status != 0:
+                print('BT HFP network service type failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_RING_IND']:
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_RING_IND, {}, mac:{}'.format(status, mac))
+            if status != 0:
+                print('BT HFP ring failed.')
+                bt.stop()
+                continue
+            retval = bt.hfpAnswerCall(addr)
+            if retval == 0:
+                print('The call was answered successfully.')
+            else:
+                print('Failed to answer the call.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_HFP_CODEC_IND']:
+            codec_type = msg[2]
+            addr = msg[3]  # MAC address of Bluetooth master device
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('BT_HFP_CODEC_IND, {}, codec_type:{}, mac:{}'.format(status, codec_type, mac))
+            if status != 0:
+                print('BT HFP codec failed.')
+                bt.stop()
+                continue
+    print('Ready to release hfp.')
+    bt.hfpRelease()
+    bt.release()
+
+
+def main():
+    global BT_IS_RUN
+
+    _thread.start_new_thread(bt_event_proc_task, ())
+
+    retval = bt.init(bt_callback)
+    if retval == 0:
+        print('BT init successful.')
+    else:
+        print('BT init failed.')
+        return -1
+    retval = bt.hfpInit()
+    if retval == 0:
+        print('HFP init successful.')
+    else:
+        print('HFP init failed.')
+        return -1
+    retval = bt.start()
+    if retval == 0:
+        print('BT start successful.')
+    else:
+        print('BT start failed.')
+        retval = bt.hfpRelease()
+        if retval == 0:
+            print('HFP release successful.')
+        else:
+            print('HFP release failed.')
+        retval = bt.release()
+        if retval == 0:
+            print('BT release successful.')
+        else:
+            print('BT release failed.')
+        return -1
+
+    count = 0
+    while True:
+        utime.sleep(1)
+        count += 1
+        cur_time = utime.localtime()
+        timestamp = "{:02d}:{:02d}:{:02d}".format(cur_time[3], cur_time[4], cur_time[5])
+
+        if count % 5 == 0:
+            if BT_IS_RUN == 1:
+                print('[{}] BT HFP is running, count = {}......'.format(timestamp, count))
+                print('')
+            else:
+                print('BT HFP has stopped running, ready to exit.')
+                break
+
+
+if __name__ == '__main__':
+    main()
+
+```
+
+
+
+##### Initialize A2DP/AVRCP 
+
+> **bt.a2dpavrcpInit()**
+
+* Feature
+
+  This function initializes A2DP and AVRCP.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Release A2DP/AVRCP Resources
+
+> **bt.a2dpavrcpRelease()**
+
+* Feature
+
+  This function releases A2DP and AVRCP resources.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Disconnect A2DP  Connection
+
+> **bt.a2dpDisconnect(addr)**
+
+* Feature
+
+  This function disconnects A2DP connection.
+
+* Parameter
+
+  | Parameter | Type  | Description                                    |
+  | --------- | ----- | ---------------------------------------------- |
+  | addr      | array | 6-byte address of A2DP Bluetooth master device |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Get Address of A2DP Bluetooth  Master Device
+
+> **bt.a2dpGetAddr()**
+
+* Feature
+
+  This function gets address of A2DP Bluetooth master device.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  If the execution is successful, it returns a 6-byte address of A2DP Bluetooth master device in bytearray type. If the execution fails, it returns -1.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Get A2DP Connection Status
+
+> **bt.a2dpGetConnStatus()**
+
+* Feature
+
+  This function gets A2DP connection status.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  | Return Value | Type | Description                         |
+  | ------------ | ---- | ----------------------------------- |
+  | -1           | int  | Fails to get A2DP connection status |
+  | 0            | int  | Disconnected                        |
+  | 1            | int  | Connecting                          |
+  | 2            | int  | Connected                           |
+  | 3            | int  | Disconnecting                       |
+
+* Example
+
+```python
+1
+```
+
+
+
+##### AVRCP Set Bluetooth Master Device to Start Playing
+
+> **bt.avrcpStart()**
+
+* Feature
+
+  This function sets Bluetooth master device to start playing.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Set Bluetooth Master Device to Stop Playing
+
+> **bt.avrcpPause()**
+
+* Feature
+
+  This function sets Bluetooth master device to stop playing.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Set Bluetooth Master Device to Play the Previous Track
+
+> **bt.avrcpPrev()**
+
+* Feature
+
+  This function sets Bluetooth master device to play the previous track.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Set Bluetooth Master Device to Play the Next Track
+
+> **bt.avrcpNext()**
+
+* Feature
+
+  This function sets Bluetooth master device to play the next track.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Set Volume of Bluetooth Master Device
+
+> **bt.avrcpSetVolume(vol)**
+
+* Feature
+
+  This function sets the volume of Bluetooth master device.
+
+* Parameter
+
+  | Parameter | Type | Description          |
+  | --------- | ---- | -------------------- |
+  | vol       | int  | Volume. Range: 0–11. |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Get Volume of Bluetooth Master Device
+
+> **bt.avrcpGetVolume()**
+
+* Feature
+
+  This function gets the volume of Bluetooth master device.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  An integer volume value           Successful execution.
+
+  -1                                                   Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Get Play Status of Bluetooth Master Device
+
+> **bt.avrcpGetPlayStatus()**
+
+* Feature
+
+  This  function gets play status of Bluetooth master device.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  | Return Value | Type | Description                     |
+  | ------------ | ---- | ------------------------------- |
+  | -1           | int  | Fails to get play status        |
+  | 0            | int  | Not play                        |
+  | 1            | int  | playing                         |
+  | 2            | int  | Play paused                     |
+  | 3            | int  | Switching to the previous track |
+  | 4            | int  | Switching to the next track     |
+
+* Example
+
+```python
+
+```
+
+
+
+##### AVRCP Get Connection Status of Bluetooth Master Device
+
+> **bt.avrcpGetConnStatus()**
+
+* Feature
+
+  This function gets connection status of Bluetooth master device through AVRCP protocol.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  | Return Value | Type | Description                    |
+  | ------------ | ---- | ------------------------------ |
+  | -1           | int  | Fails to get connection status |
+  | 0            | int  | Disconnected                   |
+  | 1            | int  | Connecting                     |
+  | 2            | int  | Connected                      |
+  | 3            | int  | Disconnecting                  |
+
+* Example
+
+```python
+
+```
+
+
+
+##### A2DP/AVRCP Demo 
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+Description: This demo describes a simple Bluetooth music playback operation through A2DP/AVRCP.
+After running this demo, search for Bluetooth device name and connect it on the mobile phone, then open the music player on the mobile phone. Then return to the demo running interface, and call the corresponding functions according to the prompt menu to perform the music playback, pause, previous track, next track and the volume setting. 
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+from machine import Pin
+
+BT_STATUS_DICT = {
+    'BT_NOT_RUNNING': 0,
+    'BT_IS_RUNNING': 1
+}
+
+A2DP_AVRCP_CONNECT_STATUS = {
+    'DISCONNECTED': 0,
+    'CONNECTING': 1,
+    'CONNECTED': 2,
+    'DISCONNECTING': 3
+}
+
+host_addr = 0
+msg_queue = Queue(10)
+
+# If the corresponding playback channel has an external PA, and PA needs to be enabled by the pin, the following steps are required.
+# Which GPIO to be used depends on the actual pin used.
+gpio11 = Pin(Pin.GPIO11, Pin.OUT, Pin.PULL_DISABLE, 0)
+gpio11.write(1)
+
+
+def cmd_proc(cmd):
+    cmds = ('1', '2', '3', '4', '5')
+    vols = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11')
+
+    if cmd in cmds:
+        if cmd == '5':
+            while True:
+                tmp = input('Please input volume: ')
+                if len(tmp) != 1:
+                    vol = tmp.split('Please input volume: ')[1]
+                else:
+                    vol = tmp
+                if vol in vols:
+                    return cmd, int(vol)
+                else:
+                    print('Volume should be in [0,11], try again.')
+        else:
+            return cmd, 0
+    else:
+        print('Command {} is not supported!'.format(cmd))
+        return -1
+
+def avrcp_play(args):
+    return bt.avrcpStart()
+
+def avrcp_pause(args):
+    return bt.avrcpPause()
+
+def avrcp_prev(args):
+    return bt.avrcpPrev()
+
+def avrcp_next(args):
+    return bt.avrcpNext()
+
+def avrcp_set_volume(vol):
+    return bt.avrcpSetVolume(vol)
+
+def bt_callback(args):
+    pass
+
+def bt_a2dp_avrcp_proc_task():
+    global msg_queue
+
+    cmd_handler = {
+        '1': avrcp_play,
+        '2': avrcp_pause,
+        '3': avrcp_prev,
+        '4': avrcp_next,
+        '5': avrcp_set_volume,
+    }
+    while True:
+        # print('wait msg...')
+        msg = msg_queue.get()
+        print('recv msg: {}'.format(msg))
+        cmd_handler.get(msg[0])(msg[1])
+
+
+def main():
+    global host_addr
+    global msg_queue
+
+    _thread.start_new_thread(bt_a2dp_avrcp_proc_task, ())
+    bt.init(bt_callback)
+    bt.setChannel(2)
+    retval = bt.a2dpavrcpInit()
+    if retval == 0:
+        print('BT A2DP/AVRCP initialization succeeded.')
+    else:
+        print('BT A2DP/AVRCP initialization failed.')
+        return -1
+
+    retval = bt.start()
+    if retval != 0:
+        print('BT start failed.')
+        return -1
+
+    utime.sleep_ms(1500)
+
+    old_name = bt.getLocalName()
+    if old_name == -1:
+        print('Get BT name error.')
+        return -1
+    print('The current BT name is {}'.format(old_name[1]))
+    new_name = 'QuecPython-a2dp'
+    print('Set new BT name to {}'.format(new_name))
+    retval = bt.setLocalName(0, new_name)
+    if retval == -1:
+        print('Set BT name failed.')
+        return -1
+    cur_name = bt.getLocalName()
+    if cur_name == -1:
+        print('Get new BT name error.')
+        return -1
+    else:
+        if cur_name[1] == new_name:
+            print('BT name changed successfully.')
+        else:
+            print('BT name changed failed.')
+
+    visible_mode = bt.getVisibleMode()
+    if visible_mode != -1:
+        print('The current BT visible mode is {}'.format(visible_mode))
+    else:
+        print('Get BT visible mode error.')
+        return -1
+
+    print('Set BT visible mode to 3.')
+    retval = bt.setVisibleMode(3)
+    if retval == -1:
+        print('Set BT visible mode error.')
+        return -1
+    count = 0
+    while True:
+        count += 1
+        if count % 5 == 0:
+            print('waiting to be connected...')
+        if count >= 10000:
+            count = 0
+        a2dp_status = bt.a2dpGetConnStatus()
+        avrcp_status = bt.avrcpGetConnStatus()
+        if a2dp_status == A2DP_AVRCP_CONNECT_STATUS['CONNECTED'] and avrcp_status == A2DP_AVRCP_CONNECT_STATUS['CONNECTED']:
+            print('========== BT connected! =========')
+            addr = bt.a2dpGetAddr()
+            if addr != -1:
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('The BT address on the host side: {}'.format(mac))
+                host_addr = addr
+            else:
+                print('Get BT addr error.')
+                return -1
+            print('Please open the music player software on your phone first.')
+            print('Please enter the following options to select a function:')
+            print('========================================================')
+            print('1 : play')
+            print('2 : pause')
+            print('3 : prev')
+            print('4 : next')
+            print('5 : set volume')
+            print('6 : exit')
+            print('========================================================')
+            while True:
+                tmp = input('> ')
+                if len(tmp) != 1:
+                    cmd = tmp.split('> ')[1]
+                else:
+                    cmd = tmp
+                if cmd == '6':
+                    break
+                retval = cmd_proc(cmd)
+                if retval != -1:
+                    msg_queue.put(retval)
+            break
+        else:
+            utime.sleep_ms(1000)
+    print('Ready to disconnect a2dp.')
+    retval = bt.a2dpDisconnect(host_addr)
+    if retval == 0:
+        print('a2dp connection disconnected successfully')
+    else:
+        print('Disconnect a2dp error.')
+    print('Ready to stop BT.')
+    retval = bt.stop()
+    if retval == 0:
+        print('BT has stopped.')
+    else:
+        print('BT stop error.')
+    bt.a2dpavrcpRelease()
+    bt.release()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+
+
+##### Initialize SPP 
+
+> **bt.sppInit()**
+
+* Feature
+
+  This function initializes SPP.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Release SPP Resources
+
+> **bt.sppRelease()**
+
+* Feature
+
+  This function releases SPP resources.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Establish SPP Connection
+
+> **bt.sppConnect(addr)**
+
+* Feature
+
+  This function established an SPP connection.
+
+* Parameter
+
+  | Parameter | Type  | Description                     |
+  | --------- | ----- | ------------------------------- |
+  | addr      | array | 6-byte Bluetooth device address |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### Disconnect SPP  Connection
+
+> **bt.sppDisconnect()**
+
+* Feature
+
+  This function disconnects SPP connection.
+
+* Parameter
+
+  None
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### SPP Send Data
+
+> **bt.sppSend(data)**
+
+* Feature
+
+  This function sends data through SPP.
+
+* Parameter
+
+  | Parameter | Type  | Description     |
+  | --------- | ----- | --------------- |
+  | data      | array | Data to be sent |
+
+* Return Value
+
+  0       Successful execution.
+
+  -1      Failed execution.
+
+* Example
+
+```python
+
+```
+
+
+
+##### SPP Demo
+
+```python
+# -*- coding: UTF-8 -*-
+
+"""
+Description: This demo describes the data transmission with the mobile phone through SPP.
+1) Before running the demo, you need to install a Bluetooth serial port application on the mobile phone (Android), such as BlueSPP, and then open this application;
+2) Change the Bluetooth name of the target device in this demo, that is, change the value of DST_DEVICE_INFO['dev_name'] to the Bluetooth name of the mobile phone that the user wants to connect to;
+3) When running the demo, first search for nearby Bluetooth devices. If the target device is found, the search will end, and then an SPP connection request will be sent to the target device;
+4) The user should check whether the interface of the Bluetooth pairing request pops up on the mobile phone. When it appears, click to pair;
+5) After the Bluetooth devices are successfully paired, the user can enter the Bluetooth serial port interface and send data to the device. After receiving the data, the device will reply "I have received the data you sent."
+6) Click to disconnect in the application of the mobile phone to end the demo.
+"""
+import bt
+import utime
+import _thread
+from queue import Queue
+
+
+BT_NAME = 'QuecPython-SPP'
+
+BT_EVENT = {
+    'BT_START_STATUS_IND': 0,          # bt/ble start
+    'BT_STOP_STATUS_IND': 1,           # bt/ble stop
+    'BT_SPP_INQUIRY_IND': 6,           # bt spp inquiry ind
+    'BT_SPP_INQUIRY_END_IND': 7,       # bt spp inquiry end ind
+    'BT_SPP_RECV_DATA_IND': 14,        # bt spp recv data ind
+    'BT_SPP_CONNECT_IND': 61,          # bt spp connect ind
+    'BT_SPP_DISCONNECT_IND': 62,       # bt spp disconnect ind
+}
+
+DST_DEVICE_INFO = {
+    'dev_name': 'HUAWEI Mate40 Pro', # The name of the Bluetooth device to be connected
+    'bt_addr': None
+}
+
+BT_IS_RUN = 0
+msg_queue = Queue(30)
+
+
+def bt_callback(args):
+    global msg_queue
+    msg_queue.put(args)
+
+
+def bt_event_proc_task():
+    global msg_queue
+    global BT_IS_RUN
+    global DST_DEVICE_INFO
+
+    while True:
+        print('wait msg...')
+        msg = msg_queue.get()  # Blocks here when there is no message
+        event_id = msg[0]
+        status = msg[1]
+
+        if event_id == BT_EVENT['BT_START_STATUS_IND']:
+            print('event: BT_START_STATUS_IND')
+            if status == 0:
+                print('BT start successfully.')
+                BT_IS_RUN = 1
+
+                print('Set BT name to {}'.format(BT_NAME))
+                retval = bt.setLocalName(0, BT_NAME)
+                if retval != -1:
+                    print('BT name set successfully.')
+                else:
+                    print('BT name set failed.')
+                    bt.stop()
+                    continue
+
+                retval = bt.setVisibleMode(3)
+                if retval == 0:
+                    mode = bt.getVisibleMode()
+                    if mode == 3:
+                        print('BT visible mode set successfully.')
+                    else:
+                        print('BT visible mode set failed.')
+                        bt.stop()
+                        continue
+                else:
+                    print('BT visible mode set failed.')
+                    bt.stop()
+                    continue
+
+                retval = bt.startInquiry(15)
+                if retval != 0:
+                    print('Inquiry error.')
+                    bt.stop()
+                    continue
+            else:
+                print('BT start failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_STOP_STATUS_IND']:
+            print('event: BT_STOP_STATUS_IND')
+            if status == 0:
+                BT_IS_RUN = 0
+                print('BT stop successfully.')
+            else:
+                print('BT stop failed.')
+
+            retval = bt.sppRelease()
+            if retval == 0:
+                print('SPP release successfully.')
+            else:
+                print('SPP release failed.')
+            retval = bt.release()
+            if retval == 0:
+                print('BT release successfully.')
+            else:
+                print('BT release failed.')
+            break
+        elif event_id == BT_EVENT['BT_SPP_INQUIRY_IND']:
+            print('event: BT_SPP_INQUIRY_IND')
+            if status == 0:
+                rssi = msg[2]
+                name = msg[4]
+                addr = msg[5]
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('name: {}, addr: {}, rssi: {}'.format(name, mac, rssi))
+
+                if name == DST_DEVICE_INFO['dev_name']:
+                    print('The target device is found, device name {}'.format(name))
+                    DST_DEVICE_INFO['bt_addr'] = addr
+                    retval = bt.cancelInquiry()
+                    if retval != 0:
+                        print('cancel inquiry failed.')
+                        continue
+            else:
+                print('BT inquiry failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_INQUIRY_END_IND']:
+            print('event: BT_SPP_INQUIRY_END_IND')
+            if status == 0:
+                print('BT inquiry has ended.')
+                inquiry_sta = msg[2]
+                if inquiry_sta == 0:
+                    if DST_DEVICE_INFO['bt_addr'] is not None:
+                        print('Ready to connect to the target device : {}'.format(DST_DEVICE_INFO['dev_name']))
+                        retval = bt.sppConnect(DST_DEVICE_INFO['bt_addr'])
+                        if retval != 0:
+                            print('SPP connect failed.')
+                            bt.stop()
+                            continue
+                    else:
+                        print('Not found device [{}], continue to inquiry.'.format(DST_DEVICE_INFO['dev_name']))
+                        bt.cancelInquiry()
+                        bt.startInquiry(15)
+            else:
+                print('Inquiry end failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_RECV_DATA_IND']:
+            print('event: BT_SPP_RECV_DATA_IND')
+            if status == 0:
+                datalen = msg[2]
+                data = msg[3]
+                print('recv {} bytes data: {}'.format(datalen, data))
+                send_data = 'I have received the data you sent.'
+                print('send data: {}'.format(send_data))
+                retval = bt.sppSend(send_data)
+                if retval != 0:
+                    print('send data faied.')
+            else:
+                print('Recv data failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_CONNECT_IND']:
+            print('event: BT_SPP_CONNECT_IND')
+            if status == 0:
+                conn_sta = msg[2]
+                addr = msg[3]
+                mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+                print('SPP connect successful, conn_sta = {}, addr {}'.format(conn_sta, mac))
+            else:
+                print('Connect failed.')
+                bt.stop()
+                continue
+        elif event_id == BT_EVENT['BT_SPP_DISCONNECT_IND']:
+            print('event: BT_SPP_DISCONNECT_IND')
+            conn_sta = msg[2]
+            addr = msg[3]
+            mac = '{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}'.format(addr[5], addr[4], addr[3], addr[2], addr[1], addr[0])
+            print('SPP disconnect successful, conn_sta = {}, addr {}'.format(conn_sta, mac))
+            bt.stop()
+            continue
+
+
+def main():
+    global BT_IS_RUN
+
+    _thread.start_new_thread(bt_event_proc_task, ())
+    retval = bt.init(bt_callback)
+    if retval == 0:
+        print('BT init successful.')
+    else:
+        print('BT init failed.')
+        return -1
+    retval = bt.sppInit()
+    if retval == 0:
+        print('SPP init successful.')
+    else:
+        print('SPP init failed.')
+        return -1
+    retval = bt.start()
+    if retval == 0:
+        print('BT start successful.')
+    else:
+        print('BT start failed.')
+        retval = bt.sppRelease()
+        if retval == 0:
+            print('SPP release successful.')
+        else:
+            print('SPP release failed.')
+        return -1
+
+    count = 0
+    while True:
+        utime.sleep(1)
+        count += 1
+        cur_time = utime.localtime()
+        timestamp = "{:02d}:{:02d}:{:02d}".format(cur_time[3], cur_time[4], cur_time[5])
+
+        if count % 5 == 0:
+            if BT_IS_RUN == 1:
+                print('[{}] BT SPP is running, count = {}......'.format(timestamp, count))
+                print('')
+            else:
+                print('BT SPP has stopped running, ready to exit.')
+                break
+
+
+if __name__ == '__main__':
+    main()
+```
+
+
+
 #### camera - Camera and Code Scan 
 
 Module function: Preview, camera, code scan
 
-Note: The BC25PA platform does not support this module function.
+Note: At present, the following modules support the camera function: EC200U series,EC600U series,EC600N series,EC600S series,EC800N series.
 
 
 ##### Preview
@@ -10630,15 +13019,15 @@ Before using the preview, you need to initialize LCD.
 | Parameter     | Type | Description                                                  |
 | ------------- | ---- | ------------------------------------------------------------ |
 | model         | int  | camera model:<br />*0: gc032a spi*<br />*1: bf3901 spi*      |
-| cam_w         | int  | *camera Horizontal resolution*                               |
-| *cam_h*       | int  | *camera Vertical resolution*                                 |
-| *lcd_w*       | int  | *LCD horizontal resolution*                                  |
-| *lcd_h*       | int  | *LCD vertical resolution*                                    |
+| cam_w         | int  | camera Horizontal resolution                                 |
+| cam_h         | int  | camera Vertical resolution                                   |
+| lcd_w         | int  | LCD horizontal resolution                                    |
+| lcd_h         | int  | LCD vertical resolution                                      |
 | perview_level | int  | Preview level[1,2]. Level 2 only for ASR platform. The higher the level, the smoother the image and the greater the consumption of resources. |
 
 * Return Value
 
-  * *-1*: Initialization failure.
+  * -1: Initialization failure.
   * If the object is returned, it means the creation is successful.
 
 * Example
@@ -10698,15 +13087,15 @@ Before using  code scan , you need to initialize LCD.
 | ------------- | ---- | ------------------------------------------------------------ |
 | model         | int  | camera model:<br />*0: gc032a spi*<br />*1: bf3901 spi*      |
 | decode_level  | int  | code scan level[1,2]，Level 2 only for ASR platform. The higher the level, the better the recognition result but the greater the resource consumption* |
-| cam_w         | int  | *camera horizontal resolution*                               |
-| *cam_h*       | int  | *camera vertical resolution*                                 |
+| cam_w         | int  | camera horizontal resolution                                 |
+| cam_h         | int  | camera vertical resolution                                   |
 | perview_level | int  | Preview level[1,2]. Level 2 only for ASR platform. The higher the level, the smoother the image and the greater the consumption of resources.<br />when it is equal to 0, there is no LCD preview function. There is no need to initialize the LCD in advance. <br/> when it is equal to 1 or 2, the LCD must be initialized first |
-| *lcd_w*       | int  | *LCD horizontal resolution*                                  |
-| *lcd_h*       | int  | *LCD vertical resolution*                                    |
+| lcd_w         | int  | LCD horizontal resolution                                    |
+| lcd_h         | int  | LCD vertical resolution                                      |
 
 * Return Value
 
-  * *-1*: Failed execution.
+  * -1: Failed execution.
   * If the object is returned, it means the creation is successful.
 
 
@@ -10784,9 +13173,9 @@ Before using  code scan , you need to initialize LCD.
   * 0: Successful execution.
   * Other values: Failed execution.
 
-
-
 ###### Resume Code Scan
+
+> **camScandecode.resume()**
 
 * Return Value
 
@@ -10829,18 +13218,18 @@ Camera function.
 
 > **import camera**
 >
-> **cap= camera.camCaputre(model,cam_w,cam_h,perview_level,lcd_w,lcd_h)**
+> **cap= camera.camCapture(model,cam_w,cam_h,perview_level,lcd_w,lcd_h)**
 
 * Parameter
 
 |Parameter | parameter type | parameter description|
 | ------------- | -------- | ------------------------------------------------------------ |
-|Model | int | camera model: <br/> * 0: gc032a spi * <br/> * 1: bf3901 spi *|
+|Model | int | camera model: <br/> *0: gc032a spi* <br/> *1: bf3901 spi* |
 | cam_ W | int | camera horizontal resolution|
-| *cam_ H * | int | * camera vertical resolution *|
+| cam_ H | int | camera vertical resolution |
 | perview_ Level | int | preview level [0,2]. Level 2 only for ASR platform. The higher the level, the smoother the image and the greater the resource consumption<br/> when it is equal to 0, there is no LCD preview function. There is no need to initialize the LCD in advance.  <br/> when it is equal to 1 or 2, the LCD must be initialized first |
-| *lcd_ W * | int | LCD horizontal resolution|
-| *lcd_ H * | int | * LCD vertical resolution *|
+| lcd_ W | int | LCD horizontal resolution|
+| lcd_ H | int | LCD vertical resolution |
 
 * Return Value
 
@@ -10850,7 +13239,7 @@ Camera function.
 
 ###### Turn on the camera
 
-> **camCaputre.open()**
+> **camCapture.open()**
 
 * Parameter
 
@@ -10865,7 +13254,7 @@ Camera function.
 
 ###### Turn off the camera
 
-> **camCaputre.close()**
+> **camCapture.close()**
 
 * Parameter
 
@@ -10882,7 +13271,7 @@ Camera function.
 
 The photo format is JPEG
 
-> **camCaputre.start(width, height, pic_name)**
+> **camCapture.start(width, height, pic_name)**
 
 * Parameter
 
@@ -10900,7 +13289,7 @@ The photo format is JPEG
 
 ###### Set camera callback
 
-> **camCaputre.callback(callback)**
+> **camCapture.callback(callback)**
 
 * Parameter
 
@@ -10919,7 +13308,7 @@ The photo format is JPEG
 def callback(para):
     print(para)     #Para [0] photographing results      0: success others: failure
                     #Para [1] name of the saved picture
-camCaputre.callback(callback) 
+camCapture.callback(callback) 
 ```
 
 
@@ -11847,13 +14236,13 @@ True
 ```
 
 ###### Event Description
+
 The general description of the events of this module is as follows:
+
 |event_id |event_code |recv_data |data_len |description|
 | -------------- | ---------|----------|------------- |---------------------------- |
 |0 |0 |NULL |0 |modem enters psm and reports this event. At this time, the module does not accept the network data sent to the module, and can break the psm state on the modem side by actively sending data. |
 |0 |1 |NULL |0 |modem exits psm mode and reports this event. |
-|22 |4 |NULL |0 |Call the interface to send CON type data, if the sending is successful, report this event|
-|22 |5 |NULL |0 |Call the interface to send CON type data, if the sending fails, report this event|
 |23 |6 |NULL |0 |The connection is successfully restored after waking up from deep sleep, and this event is reported. Reported when AEP.set_event_callcb(usrfunc) is called. |
 |23 |7 |NULL |0 |Failed to resume connection after wake-up from deep sleep, you can disconnect and reconnect. Reported when AEP.set_event_callcb(usrfunc) is called. |
 |24 |8 |NULL |0 |After the cloud platform issues the fota upgrade command, this event is reported when the module starts to download the differential upgrade package. |
@@ -12465,5 +14854,66 @@ aep=AEP(servcei_info['ip'],servcei_info['port'],modem_type['no_cache'])
 if __name__ == '__main__':
     do_task()
 
+```
+
+
+
+#### uping-(ICMP)ping
+
+Module function: Simulate sending icmp-ping packets
+
+
+
+##### ping
+
+- Precautions
+
+There may be exceptions here, because the host address cannot resume the exception of the socket connection
+
+Periodically send Ping packet mechanism through `COUNT` and `INTERVAL` in initialization parameters
+
+> **import uping**
+>
+> **up = uping.ping(HOST, SOURCE=None, COUNT=4, INTERVAL=1000, SIZE=64, TIMEOUT=5000, quiet=False)**
+
+- parameter
+
+| parameter | type | illustrate                                                   |
+| --------- | ---- | ------------------------------------------------------------ |
+| HOST      | str  | The domain name address to be pinged, such as "baidu.com"    |
+| SOURCE    | str  | Source address, used for binding, generally does not need to be passed |
+| COUNT     | int  | The default is 4 times, send 4 ping packets                  |
+| INTERVAL  | int  | Interval time, the default is ms, the default is 1000ms      |
+| SIZE      | int  | The default packet size of each read is 64, no need to modify |
+| TIMEOUT   | int  | Timeout time, the unit is ms, the default is 5000ms or 5s    |
+| quiet     | bool | Default fasle, print output, after setting True, the printed value obtained after calling start will be converted into an object and returned, rather than displayed by printing |
+
+
+
+example of use
+
+```python
+# method one
+# printout method
+import uping
+uping.ping('baidu.com')
+
+# The following is the output of uping.start(), no return value
+#72 bytes from 49.49.48.46: icmp_seq=1, ttl=53, time=1169.909000 ms
+#72 bytes from 49.49.48.46: icmp_seq=2, ttl=53, time=92.060000 ms
+#72 bytes from 49.49.48.46: icmp_seq=3, ttl=53, time=94.818000 ms
+#72 bytes from 49.49.48.46: icmp_seq=4, ttl=53, time=114.879000 ms
+#4 packets transmitted, 4 packets received, 0 packet loss
+#round-trip min/avg/max = 92.06000000000001/367.916/1169.909 ms
+
+
+
+
+# Method 2
+# Setting quiet will get the output
+import uping
+result = uping.ping('baidu.com', quiet=True)
+# result can get the corresponding data
+# result(tx=4, rx=4, losses=0, min=76.93899999999999, avg=131.348, max=226.697)
 ```
 
